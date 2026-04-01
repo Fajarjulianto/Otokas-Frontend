@@ -1,50 +1,68 @@
-# Welcome to your Expo app 👋
+#OTOKAS
+Asisten Pribadi Juragan Mokas
+Aplikasi mobile B2B SaaS untuk membantu pemilik showroom motor bekas mengelola stok, mencatat transaksi, dan memantau keuntungan secara real-time.
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+## Tech Stack
 
-## Get started
+| Layer          | Teknologi                    |
+| -------------- | ---------------------------- |
+| Framework      | React Native + Expo SDK 52   |
+| Routing        | Expo Router (file-based)     |
+| Styling        | NativeWind v4 (Tailwind CSS) |
+| Language       | TypeScript                   |
+| Auth & User DB | Supabase Auth                |
+| Backend API    | Custom REST API              |
+| HTTP Client    | Axios                        |
+| Server State   | TanStack Query v5            |
 
-1. Install dependencies
+## Struktur Project
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+otokas/
+├── app/                          # Expo Router — file = route
+│   ├── _layout.tsx               # Root layout (QueryClient + AuthProvider)
+│   ├── index.tsx                 # Entry point & redirect logic
+│   ├── (auth)/
+│   │   ├── _layout.tsx           # Auth stack layout
+│   │   ├── login.tsx             # Halaman login
+│   │   └── register.tsx          # Halaman register
+│   ├── (tabs)/
+│   │   ├── _layout.tsx           # Tab navigator
+│   │   ├── index.tsx             # Beranda / Dashboard
+│   │   ├── stok.tsx              # Daftar stok motor
+│   │   ├── tambah.tsx            # Quick add motor
+│   │   ├── laporan.tsx           # Laporan harian & bulanan
+│   │   └── profil.tsx            # Profil & pengaturan
+│   └── unit/
+│       ├── scan.tsx              # Kamera + OCR STNK/BPKB
+│       └── [id]/
+│           └── edit.tsx          # Lengkapi data motor
+│
+├── src/
+│   ├── lib/
+│   │   ├── supabase.ts           # Supabase client (auth only)
+│   │   └── api.ts                # Axios instance + interceptor
+│   ├── context/
+│   │   └── authContext.tsx       # AuthContext (user session global)
+│   ├── hooks/
+│   │   ├── useAuth.ts            # Hook cek session
+│   │   └── useMotors.ts          # TanStack Query hooks (CRUD motor)
+│   ├── services/
+│   │   └── motorService.ts       # Fungsi fetch ke REST API
+│   ├── types/
+│   │   ├── motor.ts              # Type Motor, MotorInsert, MotorUpdate
+│   │   ├── transaction.ts        # Type Transaction
+│   │   ├── report.ts             # Type DailyReport, MonthlyReport
+│   │   └── api.ts                # Type ApiResponse, ApiError
+│   └── utils/
+│       └── formatRupiah.ts       # Helper format & parse Rupiah
+│
+├── global.css                    # NativeWind base styles
+├── tailwind.config.js            # Konfigurasi Tailwind + tema Otokas
+├── babel.config.js
+├── metro.config.js
+├── app.json
+└── .env                          # Environment variables (jangan di-commit)
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+---
