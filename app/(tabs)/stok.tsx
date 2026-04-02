@@ -174,7 +174,7 @@ export default function StokPage() {
   return (
     <SafeAreaView className="flex-1 bg-slate-100" edges={["top"]}>
       {/* HEADER */}
-      <View className="bg-otokas-primary px-5 pt-2 pb-6">
+      <View className="bg-otokas-primary px-5 pt-2 pb-6 rounded-b-xl">
         <View className="flex-row items-end justify-between">
           <View>
             <Text className="text-blue-200 text-sm">Inventaris</Text>

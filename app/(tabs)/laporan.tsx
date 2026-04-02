@@ -1,240 +1,348 @@
-// import React, { useState } from "react";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  // Modal,
-  // Image,
-} from "react-native";
-import { router, Stack } from "expo-router";
-import { Feather, FontAwesome5 } from "@expo/vector-icons";
-
-const handleFeatureNotReady = (featureName: string) => {
-  Alert.alert(
-    "Fitur Segera Hadir",
-    `Fitur ${featureName} akan aktif setelah masa trial selesai.`,
-  );
-};
+  DateRangePicker,
+  formatDateID,
+} from "@/src/components/DateRangePicker";
+import { useDateRangePicker } from "@/src/hooks/useDateRangePicker";
+import {
+  BarChart2,
+  Bike,
+  Download,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+} from "lucide-react-native";
+import React from "react";
+import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const summaryStats = [
   {
-    iconName: "dollar-sign",
+    icon: Wallet,
     iconColor: "#10B981",
     title: "Total Pendapatan",
     value: "Rp 1.42M",
     trend: "+14.5%",
-    isTrendPositive: true,
+    isPositive: true,
   },
   {
-    iconName: "motorcycle",
-    iconColor: "#6B7280",
+    icon: Bike,
+    iconColor: "#1e3a8a",
     title: "Total Terjual",
     value: "95 unit",
     trend: "+8 unit",
-    isTrendPositive: true,
+    isPositive: true,
   },
   {
-    iconName: "bar-chart-2",
-    iconColor: "#6B7280",
+    icon: BarChart2,
+    iconColor: "#f59e0b",
     title: "Rata-rata Margin",
     value: "15.2%",
     trend: "-0.8%",
-    isTrendPositive: false,
+    isPositive: false,
   },
   {
-    iconName: "money-bill-wave",
-    iconColor: "#6B7280",
+    icon: Wallet,
+    iconColor: "#6366f1",
     title: "Harga Rata-rata",
     value: "Rp 18.9jt",
     trend: "+Rp 1.2jt",
-    isTrendPositive: true,
+    isPositive: true,
   },
 ];
 
-const bestSellerMotors = [
-  { name: "Honda Vario 125", units: 14, progressPercentage: 100 },
-  { name: "Yamaha NMAX 155", units: 11, progressPercentage: 78.5 },
-  { name: "Honda Beat", units: 10, progressPercentage: 71.4 },
-  { name: "Honda PCX 160", units: 8, progressPercentage: 57.1 },
-  { name: "Kawasaki Ninja 250", units: 6, progressPercentage: 42.8 },
+const bestSellers = [
+  { name: "Honda Vario 125", units: 14 },
+  { name: "Yamaha NMAX 155", units: 11 },
+  { name: "Honda Beat", units: 10 },
+  { name: "Honda PCX 160", units: 8 },
+  { name: "Kawasaki Ninja 250", units: 6 },
 ];
 
 const revenueData = [
-  { month: "Sep", value: 180, percentage: 56 },
-  { month: "Okt", value: 220, percentage: 68 },
-  { month: "Nov", value: 200, percentage: 62 },
-  { month: "Des", value: 320, percentage: 100 },
-  { month: "Jan", value: 240, percentage: 75 },
-  { month: "Feb", value: 280, percentage: 87 },
+  { month: "Sep", value: 180 },
+  { month: "Okt", value: 220 },
+  { month: "Nov", value: 200 },
+  { month: "Des", value: 320 },
+  { month: "Jan", value: 240 },
+  { month: "Feb", value: 280 },
 ];
 
-// 1. Kartu Statistik Ringkasan (Grid 2x2)
-const StatCard = ({ item }: { item: (typeof summaryStats)[0] }) => {
-  const Icon = item.iconName === "motorcycle" ? FontAwesome5 : Feather;
+const maxRevenue = Math.max(...revenueData.map((d) => d.value));
+const maxUnits = bestSellers[0]?.units ?? 1;
 
+// ─────────────────────────────────────────
+// Komponen: Kartu Statistik
+// ─────────────────────────────────────────
+type StatCardProps = {
+  icon: React.ComponentType<{
+    size: number;
+    color: string;
+    strokeWidth: number;
+  }>;
+  iconColor: string;
+  title: string;
+  value: string;
+  trend: string;
+  isPositive: boolean;
+};
+
+function StatCard({
+  icon: Icon,
+  iconColor,
+  title,
+  value,
+  trend,
+  isPositive,
+}: StatCardProps) {
   return (
-    <View className="flex-1 bg-white rounded-xl p-4 m-2 shadow-sm border border-gray-100">
-      <View className="flex-row items-center mb-3">
-        <Icon name={item.iconName} size={16} color={item.iconColor} />
-        <Text className="text-gray-400 text-xs ml-2 font-medium">
-          {item.title}
+    <View
+      className="flex-1 bg-white rounded-2xl p-4"
+      style={{
+        elevation: 2,
+        shadowColor: "#000",
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+      }}
+    >
+      <View className="flex-row items-center gap-2 mb-3">
+        <View
+          className="w-8 h-8 rounded-xl items-center justify-center"
+          style={{ backgroundColor: `${iconColor}18` }}
+        >
+          <Icon size={16} color={iconColor} strokeWidth={2} />
+        </View>
+        <Text className="text-slate-400 text-xs flex-1" numberOfLines={1}>
+          {title}
         </Text>
       </View>
-      <Text className="text-gray-800 text-2xl font-extrabold mb-1.5">
-        {item.value}
-      </Text>
-      <View
-        className={`flex-row items-center px-2 py-0.5 rounded-full ${item.isTrendPositive ? "bg-emerald-50" : "bg-red-50"}`}
+
+      <Text
+        className="text-slate-900 text-xl font-bold mb-2"
+        numberOfLines={1}
+        adjustsFontSizeToFit
       >
-        <Feather
-          name={item.isTrendPositive ? "trending-up" : "trending-down"}
-          size={12}
-          color={item.isTrendPositive ? "#10B981" : "#EF4444"}
-        />
+        {value}
+      </Text>
+
+      <View
+        className={`flex-row items-center gap-1 self-start px-2 py-0.5 rounded-full ${
+          isPositive ? "bg-emerald-50" : "bg-red-50"
+        }`}
+      >
+        {isPositive ? (
+          <TrendingUp size={11} color="#10b981" strokeWidth={2.5} />
+        ) : (
+          <TrendingDown size={11} color="#ef4444" strokeWidth={2.5} />
+        )}
         <Text
-          className={`text-xs ml-1 font-bold ${item.isTrendPositive ? "text-emerald-600" : "text-red-600"}`}
+          className={`text-xs font-bold ${
+            isPositive ? "text-emerald-600" : "text-red-500"
+          }`}
         >
-          {item.trend}
+          {trend}
         </Text>
       </View>
     </View>
   );
-};
+}
 
-// 2. Item Motor Terlaris
-const MotorItem = ({ item }: { item: (typeof bestSellerMotors)[0] }) => (
-  <View className="mb-4">
-    <View className="flex-row justify-between items-center mb-1.5">
-      <Text className="text-gray-700 font-bold text-base">{item.name}</Text>
-      <Text className="text-gray-900 font-extrabold text-base">
-        {item.units} unit
-      </Text>
-    </View>
-    <View className="h-2 w-full bg-gray-100 rounded-full relative overflow-hidden">
-      <View
-        style={{ width: `${item.progressPercentage}%` }}
-        className="h-2 bg-otokas-secondary rounded-full"
-      />
-    </View>
-  </View>
-);
-
-// --- 📱 HALAMAN UTAMA (Laporan) ---
-export default function ReportsScreen() {
-  // const [modalVisible, setModalVisible] = useState(false);
-
-  const handleDownloadExcel = () => {
-    Alert.alert(
-      "Berhasil!",
-      "Laporan Excel untuk periode 01 Sep 2024 - 28 Feb 2025 sudah terkirim ke WhatsApp Bos.",
-      [{ text: "Mantap!" }],
-    );
-  };
+// ─────────────────────────────────────────
+// Komponen: Item Motor Terlaris
+// ─────────────────────────────────────────
+function MotorItem({
+  item,
+  rank,
+}: {
+  item: (typeof bestSellers)[0];
+  rank: number;
+}) {
+  const percentage = (item.units / maxUnits) * 100;
 
   return (
-    <View className="flex-1 bg-gray-50">
-      <Stack.Screen options={{ headerShown: false }} />
-      <View className="bg-otokas-primary pt-10 pb-5 px-6 rounded-b-[32px] shadow-lg relative z-10 mb-10">
-        <View className="flex-row items-center">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-10 h-10 bg-white/10 rounded-full items-center justify-center"
+    <View className="mb-3">
+      <View className="flex-row justify-between items-center mb-1">
+        <View className="flex-row items-center gap-2 flex-1">
+          <Text className="text-slate-400 text-sm w-4">{rank}</Text>
+          <Text
+            className="text-slate-800 font-semibold text-base flex-1"
+            numberOfLines={1}
           >
-            <Feather name="arrow-left" size={24} color="white" />
+            {item.name}
+          </Text>
+        </View>
+        <Text className="text-slate-900 font-bold text-sm ml-2">
+          {item.units} unit
+        </Text>
+      </View>
+      <View
+        className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden ml-6"
+        style={{ width: "94%" }}
+      >
+        <View
+          className={`h-1.5 rounded-full ${rank === 1 ? "bg-amber-400" : "bg-otokas-primary"}`}
+          style={{ width: `${percentage}%` }}
+        />
+      </View>
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────
+// MAIN
+// ─────────────────────────────────────────
+export default function LaporanScreen() {
+  const picker = useDateRangePicker({
+    startDate: new Date(2024, 8, 1), // 01 Sep 2024
+    endDate: new Date(2025, 1, 28), // 28 Feb 2025
+  });
+
+  function handleDownload() {
+    Alert.alert(
+      "Laporan Berhasil Diunduh",
+      `Laporan Excel periode ${formatDateID(picker.range.startDate)} – ${formatDateID(picker.range.endDate)} sudah terunduh.`,
+      [{ text: "Oke" }],
+    );
+  }
+
+  return (
+    <SafeAreaView className="flex-1 bg-slate-100" edges={["top"]}>
+      <View className="bg-otokas-primary px-6 pt-4 pb-5 rounded-b-xl">
+        <View className="flex-row items-end justify-between">
+          <View>
+            <Text className="text-blue-200 text-sm">Ringkasan</Text>
+            <Text className="text-white text-2xl font-bold mt-0.5">
+              Laporan
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleDownload}
+            className="flex-row items-center gap-2 bg-amber-400 px-4 py-2.5 rounded-xl"
+          >
+            <Download size={16} color="white" strokeWidth={2.5} />
+            <Text className="text-white font-bold text-sm">Unduh Excel</Text>
           </TouchableOpacity>
-          <Text className="text-white text-xl font-bold ml-4">Laporan</Text>
         </View>
       </View>
 
       <ScrollView
-        className="flex-1 px-4 -mt-6 relative z-0"
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          padding: 20,
+          paddingTop: 0,
+          paddingBottom: 100,
+        }}
       >
-        {/* KARTU FILTER TANGGAL */}
-        <View className="bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex-row items-center justify-between mb-6">
-          <TouchableOpacity
-            onPress={() => handleFeatureNotReady("Ubah Tanggal")}
-            className="flex-row flex-1 items-center bg-otokas-secondary px-3 py-2 rounded-lg"
-          >
-            <Feather name="calendar" size={16} color="white" />
-            <Text className="text-white font-bold ml-2 text-sm">
-              01 Sep 2024
-            </Text>
-          </TouchableOpacity>
-          <Text className="text-gray-300 mx-3">—</Text>
-          <TouchableOpacity
-            onPress={() => handleFeatureNotReady("Ubah Tanggal")}
-            className="flex-row flex-1 items-center border border-gray-100 px-3 py-2 rounded-lg bg-gray-50"
-          >
-            <Feather name="calendar" size={16} color="#6B7280" />
-            <Text className="text-gray-600 font-medium ml-2 text-sm">
-              28 Feb 2025
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* TOMBOL UNDUH EXCEL */}
-        <TouchableOpacity
-          onPress={handleDownloadExcel}
-          className="bg-otokas-primary flex-row justify-center items-center py-4 rounded-xl mb-6 shadow-sm active:bg-blue-900"
+        {/* ── DATE RANGE SELECTOR ── */}
+        <View
+          className="bg-white rounded-2xl p-4 mt-6 mb-5 flex-row items-center gap-3"
+          style={{
+            elevation: 4,
+            shadowColor: "#000",
+            shadowOpacity: 0.08,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 4 },
+          }}
         >
-          <Feather name="download" size={18} color="white" />
-          <Text className="text-white font-bold ml-2.5 text-lg">
-            Unduh Laporan Excel
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => picker.open("start")}
+            className="flex-1 flex-row items-center gap-2 bg-otokas-primary px-3 py-2.5 rounded-xl"
+          >
+            <Text className="text-white text-sm font-semibold">
+              {formatDateID(picker.range.startDate)}
+            </Text>
+          </TouchableOpacity>
 
-        {/* GRID STATISTIK RINGKASAN */}
-        <View className="flex-row flex-wrap -m-2 mb-6">
-          {summaryStats.map((item, index) => (
-            <StatCard key={index} item={item} />
-          ))}
+          <Text className="text-slate-300 font-medium">—</Text>
+
+          <TouchableOpacity
+            onPress={() => picker.open("end")}
+            className="flex-1 flex-row items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl"
+          >
+            <Text className="text-slate-600 text-sm font-medium">
+              {formatDateID(picker.range.endDate)}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        {/* GRAFIK PENDAPATAN 6 BULAN (Secara Manual) */}
-        <View className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-100">
-          <Text className="text-gray-800 font-bold text-lg mb-6">
-            Pendapatan 6 Bulan Terakhir (juta Rp)
-          </Text>
-          <View className="flex-row h-52 relative border-b border-gray-100 pb-2">
-            {/* Sumbu Y Label (Manual) */}
-            <View className="absolute left-0 bottom-10 h-44 justify-between items-end pr-2">
-              <Text className="text-xs text-gray-400 font-medium">320</Text>
-              <Text className="text-xs text-gray-400 font-medium">240</Text>
-              <Text className="text-xs text-gray-400 font-medium">160</Text>
-              <Text className="text-xs text-gray-400 font-medium">80</Text>
-              <Text className="text-xs text-gray-400 font-medium">0</Text>
-            </View>
+        <View className="flex-row gap-3 mb-3">
+          <StatCard {...summaryStats[0]} />
+          <StatCard {...summaryStats[1]} />
+        </View>
+        <View className="flex-row gap-3 mb-5">
+          <StatCard {...summaryStats[2]} />
+          <StatCard {...summaryStats[3]} />
+        </View>
 
-            {/* Batang Grafik (Flex-row) */}
-            <View className="flex-1 flex-row justify-around items-end pl-8">
-              {revenueData.map((data, index) => (
-                <View key={index} className="items-center w-8">
+        <View
+          className="bg-white rounded-2xl p-5 mb-5"
+          style={{
+            elevation: 2,
+            shadowColor: "#000",
+            shadowOpacity: 0.06,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 2 },
+          }}
+        >
+          <Text className="text-slate-800 font-bold text-base mb-1">
+            Pendapatan 6 Bulan Terakhir
+          </Text>
+          <Text className="text-slate-400 text-xs mb-5">dalam juta Rupiah</Text>
+
+          <View className="flex-row items-end justify-between h-40 gap-2">
+            {revenueData.map((d, i) => {
+              const heightPct = (d.value / maxRevenue) * 100;
+              const isHighest = d.value === maxRevenue;
+              return (
+                <View key={i} className="flex-1 items-center gap-2">
+                  <Text className="text-slate-400 text-xs">{d.value}</Text>
                   <View
-                    style={{ height: `${data.percentage}%` }}
-                    className="w-8 bg-otokas-primary rounded-t-lg"
-                  />
-                  <Text className="text-xs text-gray-500 font-medium mt-3">
-                    {data.month}
+                    className="w-full bg-slate-100 rounded-t-xl overflow-hidden"
+                    style={{ height: 100 }}
+                  >
+                    <View
+                      className={`w-full rounded-t-xl absolute bottom-0 ${
+                        isHighest ? "bg-amber-400" : "bg-otokas-primary"
+                      }`}
+                      style={{ height: `${heightPct}%` }}
+                    />
+                  </View>
+                  <Text className="text-slate-500 text-xs font-medium">
+                    {d.month}
                   </Text>
                 </View>
-              ))}
-            </View>
+              );
+            })}
           </View>
         </View>
 
-        {/* DAFTAR MOTOR TERLARIS */}
-        <View className="bg-white rounded-2xl p-5 mb-10 shadow-sm border border-gray-100">
-          <Text className="text-gray-800 font-bold text-lg mb-5">
+        <View
+          className="bg-white rounded-2xl p-5 mb-5"
+          style={{
+            elevation: 2,
+            shadowColor: "#000",
+            shadowOpacity: 0.06,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 2 },
+          }}
+        >
+          <Text className="text-slate-800 font-bold text-base mb-5">
             Motor Terlaris
           </Text>
-          {bestSellerMotors.map((item, index) => (
-            <MotorItem key={index} item={item} />
+          {bestSellers.map((item, i) => (
+            <MotorItem key={i} item={item} rank={i + 1} />
           ))}
         </View>
       </ScrollView>
-    </View>
+
+      <DateRangePicker
+        visible={picker.isOpen}
+        tempRange={picker.tempRange}
+        step={picker.step}
+        onSelect={picker.selectDate}
+        onConfirm={picker.confirm}
+        onClose={picker.close}
+      />
+    </SafeAreaView>
   );
 }
