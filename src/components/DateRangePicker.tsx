@@ -211,7 +211,7 @@ export function DateRangePicker({
             <Text className="text-slate-800 font-bold text-lg">
               Pilih Periode
             </Text>
-            <Text className="text-amber-500 text-xs font-medium mt-0.5">
+            <Text className="text-otokas-secondary text-xs font-medium mt-0.5">
               {stepLabel}
             </Text>
           </View>

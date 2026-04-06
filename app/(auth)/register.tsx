@@ -71,6 +71,7 @@ export default function RegisterPage() {
                   className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-slate-900"
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  onChange={() => {}}
                 />
                 <View className="absolute right-4 top-4">
                   <Mail size={20} color="#94a3b8" />
@@ -88,6 +89,7 @@ export default function RegisterPage() {
                   placeholder="Minimal 8 karakter"
                   secureTextEntry={!showPassword}
                   className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-slate-900"
+                  onChange={() => {}}
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
@@ -121,7 +123,8 @@ export default function RegisterPage() {
               serta{" "}
               <Text className="text-amber-600 font-medium">
                 Kebijakan Privasi
-              </Text>{" "}
+              </Text>
+              {""}
               Otokas.
             </Text>
 

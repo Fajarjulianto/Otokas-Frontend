@@ -1,3 +1,4 @@
+import { router } from "@/.expo/types/router";
 import {
   DateRangePicker,
   formatDateID,
@@ -7,6 +8,7 @@ import {
   BarChart2,
   Bike,
   Download,
+  Feather,
   TrendingDown,
   TrendingUp,
   Wallet,
@@ -193,8 +195,8 @@ function MotorItem({
 // ─────────────────────────────────────────
 export default function LaporanScreen() {
   const picker = useDateRangePicker({
-    startDate: new Date(2024, 8, 1), // 01 Sep 2024
-    endDate: new Date(2025, 1, 28), // 28 Feb 2025
+    startDate: new Date(2024, 8, 1),
+    endDate: new Date(2025, 1, 28),
   });
 
   function handleDownload() {
@@ -211,6 +213,12 @@ export default function LaporanScreen() {
         <View className="flex-row items-end justify-between">
           <View>
             <Text className="text-blue-200 text-sm">Ringkasan</Text>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              className="w-10 h-10 bg-white/10 rounded-full items-center justify-center"
+            >
+              <Feather className="arrow-left" size={24} color="white" />
+            </TouchableOpacity>
             <Text className="text-white text-2xl font-bold mt-0.5">
               Laporan
             </Text>
