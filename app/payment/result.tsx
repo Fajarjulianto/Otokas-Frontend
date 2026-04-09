@@ -5,7 +5,6 @@ import {
   CheckCircle,
   Clock,
   CreditCard,
-  Hash,
   Home,
   RefreshCw,
 } from "lucide-react-native";
@@ -153,7 +152,7 @@ export default function PaymentResultScreen() {
                 onPress={() => router.replace("/(tabs)")}
                 className="w-full bg-otokas-primary py-4 rounded-2xl flex-row items-center justify-center gap-2 mb-3"
               >
-                <Home size={18} color="white" strokeWidth={2.5} />
+                {/* <Home size={18} color="white" strokeWidth={2.5} /> */}
                 <Text className="text-white font-bold text-base">
                   Kembali ke Beranda
                 </Text>
@@ -162,7 +161,7 @@ export default function PaymentResultScreen() {
                 onPress={() => router.replace("/(tabs)/profil")}
                 className="w-full bg-slate-100 py-4 rounded-2xl flex-row items-center justify-center gap-2"
               >
-                <Hash size={18} color="#475569" strokeWidth={2} />
+                {/* <Hash size={18} color="#475569" strokeWidth={2} /> */}
                 <Text className="text-slate-600 font-semibold text-base">
                   Lihat Riwayat Langganan
                 </Text>

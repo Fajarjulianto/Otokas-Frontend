@@ -25,7 +25,14 @@ export default function RootLayout() {
           name="unit/scan"
           options={{ headerShown: true, title: "Scan STNK" }}
         />
+        <Stack.Screen name="paket" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="payment/checkout"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="payment/result" options={{ headerShown: false }} />
       </Stack>
+
       {/* </AuthProvider> */}
     </QueryClientProvider>
   );

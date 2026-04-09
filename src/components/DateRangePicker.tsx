@@ -59,7 +59,6 @@ function DayCell({ date, tempRange, step, onSelect }: DayCellProps) {
   const isEnd = isSameDay(date, endDate);
   const inRange = isInRange(date, startDate, endDate);
   const isToday = isSameDay(date, new Date());
-
   const isSelected = isStart || isEnd;
   const bgSelected = isStart ? "bg-otokas-primary" : "bg-amber-400";
   const textSelected = "text-white font-bold";

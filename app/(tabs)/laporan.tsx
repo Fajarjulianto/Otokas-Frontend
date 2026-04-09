@@ -1,14 +1,14 @@
-import { router } from "@/.expo/types/router";
 import {
   DateRangePicker,
   formatDateID,
 } from "@/src/components/DateRangePicker";
 import { useDateRangePicker } from "@/src/hooks/useDateRangePicker";
+import { router } from "expo-router";
 import {
+  ArrowLeft,
   BarChart2,
   Bike,
   Download,
-  Feather,
   TrendingDown,
   TrendingUp,
   Wallet,
@@ -190,13 +190,10 @@ function MotorItem({
   );
 }
 
-// ─────────────────────────────────────────
-// MAIN
-// ─────────────────────────────────────────
 export default function LaporanScreen() {
   const picker = useDateRangePicker({
-    startDate: new Date(2024, 8, 1),
-    endDate: new Date(2025, 1, 28),
+    startDate: new Date(2026, 4, 1),
+    endDate: new Date(2026, 5, 20),
   });
 
   function handleDownload() {
@@ -210,25 +207,23 @@ export default function LaporanScreen() {
   return (
     <SafeAreaView className="flex-1 bg-slate-100" edges={["top"]}>
       <View className="bg-otokas-primary px-6 pt-4 pb-5 rounded-b-xl">
-        <View className="flex-row items-end justify-between">
-          <View>
-            <Text className="text-blue-200 text-sm">Ringkasan</Text>
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center">
             <TouchableOpacity
               onPress={() => router.back()}
               className="w-10 h-10 bg-white/10 rounded-full items-center justify-center"
             >
-              <Feather className="arrow-left" size={24} color="white" />
+              <ArrowLeft className="arrow-left" size={24} color="white" />
             </TouchableOpacity>
-            <Text className="text-white text-2xl font-bold mt-0.5">
-              Laporan
-            </Text>
+            <Text className="text-white text-2xl font-bold ml-3">Laporan</Text>
           </View>
+
           <TouchableOpacity
             onPress={handleDownload}
             className="flex-row items-center gap-2 bg-amber-400 px-4 py-2.5 rounded-xl"
           >
             <Download size={16} color="white" strokeWidth={2.5} />
-            <Text className="text-white font-bold text-sm">Unduh Excel</Text>
+            <Text className="text-white font-bold text-sm">Unduh</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -3,13 +3,13 @@
 
 // export const api = axios.create({
 //   baseURL: process.env.EXPO_PUBLIC_API_URL,
-//   Headers: {
-//     "Content-Type": "appliacation/json",
+//   headers: {
+//     "Content-Type": "application/json",
 //   },
 //   timeout: 10000,
 // });
 
-// api.intercenptors.request.use(async (config) => {
+// api.interceptors.request.use(async (config) => {
 //   const {
 //     data: { session },
 //   } = await supabase.auth.getSession();
