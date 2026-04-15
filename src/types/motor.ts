@@ -1,5 +1,5 @@
 export interface Motor {
-  id: number;
+  id: string;
   brand: string;
   name: string;
   year: number;
