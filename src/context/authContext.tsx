@@ -1,82 +1,121 @@
-// import { supabase } from "@/src/lib/supabase";
-// import { Session, User } from "@supabase/supabase-js";
-// import React, { createContext, useContext, useEffect, useState } from "react";
+import { AUTH_KEY } from "@/src/constants/storage";
+import { deleteToken, getToken, saveToken } from "@/src/lib/secureToken";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
-// type AuthUser = {
-//   id: string;
-//   email: string;
-//   fullName: string;
-// };
+// ─── Types ────
+export type AuthUser = {
+  id?: string;
+  email: string;
+  fullName?: string;
+  dealerName?: string;
+  isPremium?: boolean;
+  token?: string;
+};
 
-// type AuthContextType = {
-//   user: AuthUser | null;
-//   session: Session | null;
-//   isLoading: boolean;
-//   signOut: () => Promise<void>;
-// };
+type AuthContextType = {
+  user: AuthUser | null;
+  isLoading: boolean;
+  signIn: (user: AuthUser) => Promise<void>;
+  signOut: () => Promise<void>;
+  updateUser: (updates: Partial<AuthUser>) => Promise<void>;
+};
 
-// const AuthContext = createContext<AuthContextType>({
-//   user: null,
-//   session: null,
-//   isLoading: true,
-//   signOut: async () => {},
-// });
+// ─── Context ─────
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  isLoading: true,
+  signIn: async () => {},
+  signOut: async () => {},
+  updateUser: async () => {},
+});
 
-// type AuthProviderProps = {
-//   children: React.ReactNode;
-// };
+// ─── Provider ─────
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
-// // ─── Provider ───
-// export function AuthProvider({ children }: AuthProviderProps) {
-//   const [session, setSession] = useState<Session | null>(null);
-//   const [user, setUser] = useState<AuthUser | null>(null);
-//   const [isLoading, setIsLoading] = useState(true);
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(AUTH_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as AuthUser;
+          //
+          const secureToken = await getToken();
+          if (secureToken) {
+            parsed.token = secureToken;
+          }
+          setUser(parsed);
+        }
+      } catch {
+        await AsyncStorage.removeItem(AUTH_KEY);
+        await deleteToken();
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
 
-//   function mapUser(supabaseUser: User | null): AuthUser | null {
-//     if (!supabaseUser) return null;
-//     return {
-//       id: supabaseUser.id,
-//       email: supabaseUser.email ?? "",
-//       fullName: supabaseUser.user_metadata?.fullName ?? "Juragan",
-//     };
-//   }
+  const signIn = useCallback(async (userData: AuthUser) => {
+    // Store token securely, separate from profile data
+    if (userData.token) {
+      await saveToken(userData.token);
+    }
+    // Store non-sensitive profile data in AsyncStorage (without token)
+    const { token: _token, ...profileData } = userData;
+    await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(profileData));
+    setUser(userData);
+  }, []);
 
-//   useEffect(() => {
-//     supabase.auth.getSession().then(({ data: { session } }) => {
-//       setSession(session);
-//       setUser(mapUser(session?.user ?? null));
-//       setIsLoading(false);
-//     });
+  const signOut = useCallback(async () => {
+    await AsyncStorage.removeItem(AUTH_KEY);
+    await deleteToken();
+    setUser(null);
+    router.replace("/(auth)/login");
+  }, [router]);
 
-//     const {
-//       data: { subscription },
-//     } = supabase.auth.onAuthStateChange((_event, session) => {
-//       setSession(session);
-//       setUser(mapUser(session?.user ?? null));
-//       setIsLoading(false);
-//     });
+  const updateUser = useCallback(async (updates: Partial<AuthUser>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, ...updates };
 
-//     return () => subscription.unsubscribe();
-//   }, []);
+      // If token is being updated, save to SecureStore
+      if (updates.token) {
+        saveToken(updates.token).catch(() => {});
+      }
 
-//   async function signOut() {
-//     await supabase.auth.signOut();
-//     setSession(null);
-//     setUser(null);
-//   }
+      // Save non-sensitive profile data to AsyncStorage
+      const { token: _token, ...profileData } = updated;
+      AsyncStorage.setItem(AUTH_KEY, JSON.stringify(profileData)).catch(
+        () => {},
+      );
+      return updated;
+    });
+  }, []);
 
-//   return (
-//     <AuthContext.Provider value={{ user, session, isLoading, signOut }}>
-//       {children}
-//     </AuthContext.Provider>
-//   );
-// }
+  return (
+    <AuthContext.Provider
+      value={{ user, isLoading, signIn, signOut, updateUser }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
 
-// // ─── Hook ───
-// export function useAuthContext() {
-//   const context = useContext(AuthContext);
-//   if (!context) {
-//     throw new Error("useAuthContext harus dipakai di dalam AuthProvider");
-//   }
-//   return context;
-// }
+// ─── Hook ────────
+export function useAuthContext() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuthContext harus dipakai di dalam AuthProvider");
+  }
+  return context;
+}

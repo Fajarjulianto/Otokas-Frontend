@@ -1,11 +1,11 @@
 import {
-    AlertCircle,
-    Bike,
-    FileText,
-    Inbox,
-    SearchX,
-    ShoppingBag,
-    WifiOff,
+  AlertCircle,
+  Bike,
+  FileText,
+  Inbox,
+  SearchX,
+  ShoppingBag,
+  WifiOff,
 } from "lucide-react-native";
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
@@ -50,7 +50,6 @@ const VARIANTS = {
 
 export type EmptyStateVariant = keyof typeof VARIANTS;
 
-// ─── Props ───────────────────────────────────────────────────────────────────
 type EmptyStateProps = {
   variant?: EmptyStateVariant;
   title?: string;
@@ -60,7 +59,6 @@ type EmptyStateProps = {
   size?: "sm" | "md" | "lg";
 };
 
-// ─── Size config ─────────────────────────────────────────────────────────────
 const SIZE_CONFIG = {
   sm: {
     wrapper: "py-6",
@@ -91,7 +89,7 @@ const SIZE_CONFIG = {
   },
 } as const;
 
-// ─── Warna icon per variant ───────────────────────────────────────────────────
+// ─── Warna icon per variant ────────
 const ICON_COLOR: Record<EmptyStateVariant, { bg: string; color: string }> = {
   motor: { bg: "#1e3a8a12", color: "#1e3a8a" },
   laporan: { bg: "#f59e0b12", color: "#f59e0b" },
@@ -102,7 +100,7 @@ const ICON_COLOR: Record<EmptyStateVariant, { bg: string; color: string }> = {
   default: { bg: "#1e3a8a12", color: "#1e3a8a" },
 };
 
-// ─── KOMPONEN ─────────────────────────────────────────────────────────────────
+// ─── KOMPONEN ───────────
 export function EmptyState({
   variant = "default",
   title,

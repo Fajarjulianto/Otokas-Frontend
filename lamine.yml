@@ -1,0 +1,1991 @@
+openapi: 3.0.3
+info:
+  title: Otokas API
+  description: >
+    Otokas API is a NestJS backend for motorcycle dealer operations. It handles
+    user authentication, vehicle inventory (motors), analytics reports,
+    Xendit-based subscriptions, dealer landing pages (tenants), and signed
+    download URLs for app distribution. It includes AI-powered STNK (vehicle
+    registration) scanning via Google Gemini with batch image upload through
+    Google Cloud Storage presigned URLs.
+  version: "1.0.0"
+  contact:
+    name: Otokas
+    url: https://otokas.com
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development server
+  - url: https://api.otokas.com/api/v1
+    description: Production server
+
+tags:
+  - name: Auth
+    description: Registration, login, token refresh, logout, session management
+  - name: Users
+    description: Profile, password reset (OTP), email verification
+  - name: Motors
+    description: Vehicle inventory CRUD, AI STNK batch scanning, motor image uploads
+  - name: Analytics
+    description: Dashboard stats, daily/weekly selling reports, incoming stock, best-selling
+  - name: Subscription
+    description: Xendit checkout integration, webhook handling, subscription status
+  - name: Tenant
+    description: Dealer landing page creation, landing config management, branding (premium)
+  - name: Public Tenant
+    description: Publicly accessible dealer profiles, landing content, paginated motor listings
+  - name: Download
+    description: Signed GCS download URLs for the mobile app APK
+
+security: []
+
+paths:
+  # ============================================================
+  # AUTH
+  # ============================================================
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new dealer account
+      description: >
+        Creates a user, auto-provisions a default FREE tenant, membership,
+        and subscription.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and receive access + refresh token
+      description: Sets refresh token as an httpOnly cookie and returns access token in body.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessTokenResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: New access token issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessTokenResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/logout:
+    delete:
+      tags: [Auth]
+      summary: Invalidate a refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutRequest"
+      responses:
+        "200":
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user payload from JWT
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ============================================================
+  # USERS
+  # ============================================================
+  /users/profile:
+    get:
+      tags: [Users]
+      summary: Get user profile details
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      tags: [Users]
+      summary: Update profile (dealer name)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/request-password-reset:
+    post:
+      tags: [Users]
+      summary: Send OTP to email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+      responses:
+        "201":
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /users/reset-password:
+    post:
+      tags: [Users]
+      summary: Reset password with OTP
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, otp, newPassword]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                otp:
+                  type: string
+                  example: "123456"
+                newPassword:
+                  type: string
+                  format: password
+                  example: newP@ssw0rd123
+      responses:
+        "201":
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /users/verify-email:
+    post:
+      tags: [Users]
+      summary: Verify email with token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, token]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                token:
+                  type: string
+                  example: a1b2c3d4...
+      responses:
+        "200":
+          description: Email verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ============================================================
+  # MOTORS
+  # ============================================================
+  /motors:
+    get:
+      tags: [Motors]
+      summary: List user's motors
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filter by motor status
+          schema:
+            $ref: "#/components/schemas/MotorStatus"
+      responses:
+        "200":
+          description: List of motors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Motor"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Motors]
+      summary: Create a single motor record
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MotorCreateRequest"
+      responses:
+        "201":
+          description: Motor created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Motor"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /motors/{id}:
+    get:
+      tags: [Motors]
+      summary: Get a single motor by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/MotorId"
+      responses:
+        "200":
+          description: Motor detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Motor"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Motors]
+      summary: Update motor fields
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/MotorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MotorUpdateRequest"
+      responses:
+        "200":
+          description: Updated motor
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Motor"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Motors]
+      summary: Delete a motor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/MotorId"
+      responses:
+        "200":
+          description: Motor deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /motors/bulk:
+    post:
+      tags: [Motors]
+      summary: Bulk create motors
+      description: Requires Private access with an active PREMIUM tenant subscription.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [motors]
+              properties:
+                motors:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/MotorCreateRequest"
+      responses:
+        "201":
+          description: Motors imported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkCreateResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /motors/scan/upload-urls:
+    post:
+      tags: [Motors]
+      summary: Get presigned GCS upload URLs for STNK images
+      description: Requires Private access with an active PREMIUM tenant subscription. Max 10 files per request.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  maxItems: 10
+                  items:
+                    $ref: "#/components/schemas/UploadFileRequest"
+      responses:
+        "201":
+          description: Presigned upload URLs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /motors/scan-batch:
+    post:
+      tags: [Motors]
+      summary: Scan STNK images via AI
+      description: >
+        Extracts vehicle data from STNK (registration) photos using AI (Google
+        Gemini). Requires Private access with an active PREMIUM tenant
+        subscription. Max 10 files per batch. Response is a raw array, no
+        wrapper object.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  maxItems: 10
+                  items:
+                    $ref: "#/components/schemas/ScanBatchFile"
+      responses:
+        "201":
+          description: Scan results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScanResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /motors/{id}/images/upload-urls:
+    post:
+      tags: [Motors]
+      summary: Get presigned GCS upload URLs for motor images
+      description: >
+        Max 10 files. After generating URLs, the backend immediately persists
+        the storageKey to motorImages.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/MotorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  maxItems: 10
+                  items:
+                    $ref: "#/components/schemas/UploadFileRequest"
+      responses:
+        "201":
+          description: Presigned upload URLs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /motors/{id}/images:
+    patch:
+      tags: [Motors]
+      summary: Replace motor images
+      description: Replaces the entire image list for a motor. Max 20 images.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/MotorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [images]
+              properties:
+                images:
+                  type: array
+                  maxItems: 20
+                  items:
+                    $ref: "#/components/schemas/MotorImageInput"
+      responses:
+        "200":
+          description: Updated motor with new images
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Motor"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /motors/{id}/sold:
+    patch:
+      tags: [Motors]
+      summary: Mark motor as sold
+      description: No request body required. Sets status to SOLD and populates soldAt.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/MotorId"
+      responses:
+        "200":
+          description: Motor marked as sold
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Motor"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ============================================================
+  # ANALYTICS
+  # ============================================================
+  /dashboard/stats:
+    get:
+      tags: [Analytics]
+      summary: Dashboard summary (stock, sold, profit, margin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          required: false
+          description: "Format: MM-YYYY"
+          schema:
+            type: string
+            example: "06-2024"
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/DashboardStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /dashboard/selling-report/daily:
+    get:
+      tags: [Analytics]
+      summary: Daily selling breakdown
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: date
+          in: query
+          required: false
+          description: "Format: D-M-YYYY or DD-MM-YYYY"
+          schema:
+            type: string
+            example: "11-6-2024"
+      responses:
+        "200":
+          description: Daily selling report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SellingReportEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /dashboard/selling-report/weekly:
+    get:
+      tags: [Analytics]
+      summary: Weekly selling breakdown
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: date
+          in: query
+          required: false
+          description: "Format: D-M-YYYY or DD-MM-YYYY"
+          schema:
+            type: string
+            example: "11-6-2024"
+      responses:
+        "200":
+          description: Weekly selling report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SellingReportEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /dashboard/incoming-stock/report:
+    get:
+      tags: [Analytics]
+      summary: Incoming stock by date
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: date
+          in: query
+          required: false
+          description: "Format: D-M-YYYY or DD-MM-YYYY"
+          schema:
+            type: string
+            example: "11-6-2024"
+      responses:
+        "200":
+          description: Incoming stock report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/IncomingStockEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /dashboard/best-selling:
+    get:
+      tags: [Analytics]
+      summary: Top-selling motor models
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: "Default 5, min 1, max 20"
+          schema:
+            type: integer
+            default: 5
+            minimum: 1
+            maximum: 20
+      responses:
+        "200":
+          description: Best-selling motors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BestSellingEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ============================================================
+  # SUBSCRIPTION
+  # ============================================================
+  /subscription/status:
+    get:
+      tags: [Subscription]
+      summary: Get current subscription tier & status
+      description: Use on app start to determine tier and lock/unlock features.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Subscription status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /subscription/checkout:
+    post:
+      tags: [Subscription]
+      summary: Create Xendit checkout invoice
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Checkout invoice created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /subscription/notification:
+    post:
+      tags: [Subscription]
+      summary: Xendit payment webhook
+      description: >
+        Server-to-server endpoint secured by the `x-callback-token` header
+        (validated against XENDIT_CALLBACK_TOKEN). Verifies invoice status
+        against Xendit's API before activating a PREMIUM subscription.
+      security: []
+      parameters:
+        - name: x-callback-token
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/XenditWebhookPayload"
+      responses:
+        "200":
+          description: Webhook processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  # ============================================================
+  # TENANT
+  # ============================================================
+  /tenants:
+    post:
+      tags: [Tenant]
+      summary: Create a new tenant (dealer landing page)
+      description: >
+        Each user can own only one tenant (including the auto-provisioned one
+        at registration). Returns 409 if a tenant already exists.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTenantRequest"
+      responses:
+        "201":
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateTenantResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Tenant already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /tenants/landing-config:
+    patch:
+      tags: [Tenant]
+      summary: Update landing page content
+      description: >
+        Requires Private access with an active PREMIUM tenant subscription.
+        Partial update: sections not provided are left unchanged. Object
+        fields are merged; array fields (e.g. businessHours.items) are fully
+        replaced when provided.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LandingConfigRequest"
+      responses:
+        "200":
+          description: Updated landing config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LandingConfigResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /tenants/branding:
+    patch:
+      tags: [Tenant]
+      summary: Update tenant branding (primary color)
+      description: Requires Private access with an active PREMIUM tenant subscription.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                primaryColor:
+                  type: string
+                  nullable: true
+                  description: "Hex color code (#RGB, #RRGGBB, #RRGGBBAA). Pass null to clear."
+                  example: "#ff8c00"
+      responses:
+        "200":
+          description: Branding updated
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ============================================================
+  # PUBLIC TENANT
+  # ============================================================
+  /public/tenants/{subdomain}:
+    get:
+      tags: [Public Tenant]
+      summary: Get tenant profile
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Subdomain"
+      responses:
+        "200":
+          description: Tenant profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicTenantProfile"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /public/tenants/{subdomain}/landing-content:
+    get:
+      tags: [Public Tenant]
+      summary: Get tenant landing page content
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Subdomain"
+      responses:
+        "200":
+          description: Tenant landing content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LandingConfigResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /public/tenants/{subdomain}/motors:
+    get:
+      tags: [Public Tenant]
+      summary: Get paginated tenant motor listings
+      description: >
+        Motor fields are dynamically adjusted per tenant based on the
+        motorDisplay landing config. Fields hidden by config return null.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Subdomain"
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+      responses:
+        "200":
+          description: Paginated motor listings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicMotorListingResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /public/tenants/{subdomain}/search:
+    get:
+      tags: [Public Tenant]
+      summary: Search tenant motor listings by keyword
+      description: >
+        Motor fields follow the same motorDisplay rules as the paginated
+        listing endpoint. When q is omitted, returns all motors (same
+        behavior as the motors listing endpoint).
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Subdomain"
+        - name: q
+          in: query
+          required: false
+          description: Search keyword for case-insensitive partial match against motor brand and name
+          schema:
+            type: string
+            example: beat
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicMotorListingResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ============================================================
+  # DOWNLOAD
+  # ============================================================
+  /download/file:
+    get:
+      tags: [Download]
+      summary: Get signed GCS download URL for app APK
+      description: Signed URL expires in 24 hours.
+      security: []
+      responses:
+        "200":
+          description: Signed download URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  signedUrl:
+                    type: string
+                    format: uri
+                    example: "https://storage.googleapis.com/bucket/Otokas.apk?X-Goog-Signature=..."
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        JWT access token obtained from /auth/login or /auth/refresh. Sent as
+        `Authorization: Bearer <access_token>`. `JwtAuthGuard` protects all
+        private endpoints; `PremiumGuard` additionally enforces an active
+        PREMIUM subscription on premium-only endpoints.
+
+  parameters:
+    MotorId:
+      name: id
+      in: path
+      required: true
+      description: Motor UUID
+      schema:
+        type: string
+        format: uuid
+    Subdomain:
+      name: subdomain
+      in: path
+      required: true
+      description: Tenant subdomain
+      schema:
+        type: string
+        example: rullymotor
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Missing or invalid JWT access token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Tenant subscription is not PREMIUM / ACTIVE
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: Validation error message
+        error:
+          type: string
+          example: Bad Request
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Operation successful
+
+    # ---------------- Auth ----------------
+    RegisterRequest:
+      type: object
+      required: [email, password, dealerName, deviceId]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          example: password123
+        dealerName:
+          type: string
+          example: John Motor
+        deviceId:
+          type: string
+          example: ios-iphone14pro-abc123
+
+    RegisterResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: User registered successfully
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: 8f31b9d3-1300-4c11-89cb-b31e40dd5f3a
+            email:
+              type: string
+              format: email
+              example: user@example.com
+            createdAt:
+              type: string
+              format: date-time
+              example: "2026-05-23T11:27:18.102Z"
+
+    LoginRequest:
+      type: object
+      required: [email, password, deviceId]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          example: password123
+        deviceId:
+          type: string
+          example: ios-iphone14pro-abc123
+
+    AccessTokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: <jwt_access_token>
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token, deviceId]
+      properties:
+        refresh_token:
+          type: string
+          example: <jwt_refresh_token>
+        deviceId:
+          type: string
+          example: ios-iphone14pro-abc123
+
+    LogoutRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          example: <jwt_refresh_token>
+
+    CurrentUser:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+          example: 8f31b9d3-1300-4c11-89cb-b31e40dd5f3a
+        email:
+          type: string
+          format: email
+          example: user@example.com
+
+    # ---------------- Users ----------------
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 8f31b9d3-1300-4c11-89cb-b31e40dd5f3a
+        dealerName:
+          type: string
+          example: John Motor
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        deviceId:
+          type: string
+          example: ios-iphone14pro-abc123
+        isVerified:
+          type: boolean
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        dealerName:
+          type: string
+          example: Super Motors Updated
+
+    # ---------------- Motors ----------------
+    MotorStatus:
+      type: string
+      enum: [AVAILABLE, BOOKED, SOLD, ARCHIVED]
+
+    MotorCategory:
+      type: string
+      enum: [MATIC, CUB, SPORT, MANUAL]
+
+    TaxStatus:
+      type: string
+      enum: [PAID, UNPAID, PENDING]
+
+    MotorImage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: image-uuid
+        storageKey:
+          type: string
+          example: motor-images/user-uuid/motor-uuid/1710000000-beat.jpg
+        url:
+          type: string
+          format: uri
+          example: "https://storage.googleapis.com/bucket/motor-images/...jpg"
+        width:
+          type: integer
+          example: 1200
+        height:
+          type: integer
+          example: 800
+        size:
+          type: integer
+          example: 248123
+
+    MotorImageInput:
+      type: object
+      required: [storageKey, url]
+      properties:
+        storageKey:
+          type: string
+          example: motor-images/user-uuid/motor-uuid/1710000000-motor-depan.jpg
+        url:
+          type: string
+          format: uri
+          example: "https://storage.googleapis.com/bucket/motor-images/...jpg"
+        width:
+          type: integer
+          nullable: true
+          example: 1200
+        height:
+          type: integer
+          nullable: true
+          example: 800
+        size:
+          type: integer
+          nullable: true
+          example: 248123
+
+    Motor:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 1f987066-1594-4d03-8ebc-4b967eb3f2ac
+        frameNumber:
+          type: string
+          nullable: true
+          example: MH1HB211XJK123456
+        engineNumber:
+          type: string
+          nullable: true
+          example: HB21E1123456
+        stnkCode:
+          type: string
+          nullable: true
+          example: NC11D1CF
+        brand:
+          type: string
+          example: Honda
+        name:
+          type: string
+          example: Revo Fit
+        category:
+          $ref: "#/components/schemas/MotorCategory"
+        year:
+          type: integer
+          nullable: true
+          example: 2021
+        plateNumber:
+          type: string
+          nullable: true
+          example: B 1234 ABC
+        color:
+          type: string
+          nullable: true
+          example: Hitam
+        displacement:
+          type: integer
+          nullable: true
+          example: 110
+        kilometer:
+          type: integer
+          nullable: true
+          example: 24500
+        tax:
+          $ref: "#/components/schemas/TaxStatus"
+        buyingPrice:
+          type: number
+          example: 12000000
+        sellingPrice:
+          type: number
+          nullable: true
+          example: 13500000
+        status:
+          $ref: "#/components/schemas/MotorStatus"
+        isIncomplete:
+          type: boolean
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        soldAt:
+          type: string
+          format: date-time
+          nullable: true
+        motorImages:
+          type: array
+          items:
+            $ref: "#/components/schemas/MotorImage"
+
+    MotorCreateRequest:
+      type: object
+      required: [brand, name, buyingPrice, isIncomplete]
+      properties:
+        brand:
+          type: string
+          description: Motor brand
+          example: Honda
+        name:
+          type: string
+          description: Model name
+          example: Beat FI
+        buyingPrice:
+          type: number
+          description: Buying price in IDR
+          example: 12000000
+        frameNumber:
+          type: string
+          example: MH3JFZ115PK000001
+        engineNumber:
+          type: string
+          example: JFZ1E-1000001
+        stnkCode:
+          type: string
+          example: NC11D1CF
+        category:
+          $ref: "#/components/schemas/MotorCategory"
+        year:
+          type: integer
+          minimum: 1900
+          example: 2021
+        plateNumber:
+          type: string
+          example: B 1234 ABC
+        color:
+          type: string
+          example: Merah
+        displacement:
+          type: integer
+          example: 125
+        kilometer:
+          type: integer
+          minimum: 0
+          example: 15000
+        tax:
+          $ref: "#/components/schemas/TaxStatus"
+        sellingPrice:
+          type: number
+          example: 14500000
+        isIncomplete:
+          type: boolean
+          description: "true if data is incomplete"
+          example: false
+
+    MotorUpdateRequest:
+      type: object
+      description: All fields optional.
+      properties:
+        brand:
+          type: string
+        name:
+          type: string
+        buyingPrice:
+          type: number
+        frameNumber:
+          type: string
+        engineNumber:
+          type: string
+        stnkCode:
+          type: string
+        category:
+          $ref: "#/components/schemas/MotorCategory"
+        year:
+          type: integer
+          minimum: 1900
+        plateNumber:
+          type: string
+        color:
+          type: string
+        displacement:
+          type: integer
+        kilometer:
+          type: integer
+          minimum: 0
+        tax:
+          $ref: "#/components/schemas/TaxStatus"
+        sellingPrice:
+          type: number
+        isIncomplete:
+          type: boolean
+      example:
+        sellingPrice: 15000000
+        color: Hitam
+
+    UploadFileRequest:
+      type: object
+      required: [fileName, mimeType]
+      properties:
+        fileName:
+          type: string
+          example: stnk-revo.jpg
+        mimeType:
+          type: string
+          example: image/jpeg
+
+    UploadUrlsResponse:
+      type: object
+      properties:
+        uploads:
+          type: array
+          items:
+            type: object
+            properties:
+              uploadUrl:
+                type: string
+                format: uri
+                example: "https://storage.googleapis.com/bucket/stnk-uploads/...?X-Goog-Signature=..."
+              filePath:
+                type: string
+                example: stnk-uploads/1710000000-stnk-revo.jpg
+              mimeType:
+                type: string
+                example: image/jpeg
+
+    ScanBatchFile:
+      type: object
+      required: [filePath, mimeType]
+      properties:
+        filePath:
+          type: string
+          example: stnk-uploads/1710000000-stnk-revo.jpg
+        mimeType:
+          type: string
+          example: image/jpeg
+
+    ScanResult:
+      type: object
+      properties:
+        brand:
+          type: string
+          example: Honda
+        name:
+          type: string
+          example: Revo Fit
+        frameNumber:
+          type: string
+          example: MH1HB211XJK123456
+        engineNumber:
+          type: string
+          example: HB21E1123456
+        year:
+          type: integer
+          example: 2021
+        plateNumber:
+          type: string
+          example: B 1234 ABC
+        color:
+          type: string
+          example: Hitam
+        category:
+          $ref: "#/components/schemas/MotorCategory"
+        stnkCode:
+          type: string
+          example: NC11D1CF
+        displacement:
+          type: integer
+          example: 110
+        isAmbiguous:
+          type: boolean
+          description: "true if the STNK code couldn't be reliably matched to a known model"
+          example: false
+        isIncomplete:
+          type: boolean
+          description: "true if the image was blurry or data unreadable; frontend should show an editable form"
+          example: false
+        remarks:
+          type: string
+          example: ""
+
+    BulkCreateResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Motors successfully imported
+        count:
+          type: integer
+          example: 1
+
+    # ---------------- Analytics ----------------
+    DashboardStats:
+      type: object
+      properties:
+        stock:
+          type: integer
+          example: 24
+        sold:
+          type: integer
+          example: 8
+        currentMonthProfit:
+          type: number
+          example: 32500000
+        currentMonthRevenue:
+          type: number
+          example: 50000000
+        marginAverage:
+          type: number
+          example: 12.4
+
+    SellingReportEntry:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2024-06-11"
+        count:
+          type: integer
+          example: 1
+        revenue:
+          type: number
+          example: 14500000
+        motors:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+                example: motor-uuid
+              name:
+                type: string
+                example: Beat FI
+              brand:
+                type: string
+                example: Honda
+              plateNumber:
+                type: string
+                example: B 1234 ABC
+              sellingPrice:
+                type: number
+                example: 14500000
+
+    IncomingStockEntry:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2024-06-11"
+        count:
+          type: integer
+          example: 2
+        totalBuyingPrice:
+          type: number
+          example: 24000000
+
+    BestSellingEntry:
+      type: object
+      properties:
+        brand:
+          type: string
+          example: Honda
+        name:
+          type: string
+          example: Beat FI
+        totalSold:
+          type: integer
+          example: 12
+        totalRevenue:
+          type: number
+          example: 180000000
+
+    # ---------------- Subscription ----------------
+    SubscriptionTier:
+      type: string
+      enum: [FREE, PREMIUM]
+
+    SubscriptionState:
+      type: string
+      enum: [ACTIVE, PENDING, INACTIVE]
+
+    SubscriptionStatus:
+      type: object
+      properties:
+        tier:
+          $ref: "#/components/schemas/SubscriptionTier"
+        status:
+          $ref: "#/components/schemas/SubscriptionState"
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        tenantId:
+          type: string
+          format: uuid
+          example: tenant-uuid
+        subdomain:
+          type: string
+          example: rullymotor
+
+    CheckoutResponse:
+      type: object
+      properties:
+        invoice_id:
+          type: string
+          example: 67f71aa8d730d8497a8f8a12
+        invoice_url:
+          type: string
+          format: uri
+          example: "https://checkout.xendit.co/web/67f71aa8d730d8497a8f8a12"
+        external_id:
+          type: string
+          example: TENANT_SUB_tenant-uuid_1716451234567
+        status:
+          type: string
+          example: PENDING
+
+    XenditWebhookPayload:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 67f71aa8d730d8497a8f8a12
+        external_id:
+          type: string
+          example: TENANT_SUB_tenant-uuid_1716451234567
+        status:
+          type: string
+          example: PAID
+        paid_at:
+          type: string
+          format: date-time
+          example: "2025-06-10T10:00:00Z"
+
+    # ---------------- Tenant ----------------
+    CreateTenantRequest:
+      type: object
+      required: [name, subdomain]
+      properties:
+        name:
+          type: string
+          example: Rully Motor
+        subdomain:
+          type: string
+          description: "Lowercase, alphanumeric, dashes allowed (not leading/trailing/consecutive), 3-63 chars."
+          example: rullymotor
+
+    CreateTenantResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: tenant-uuid
+        name:
+          type: string
+          example: Rully Motor
+        subdomain:
+          type: string
+          example: rullymotor
+        fullDomain:
+          type: string
+          example: rullymotor.otokas.com
+
+    BusinessHourItem:
+      type: object
+      properties:
+        day:
+          type: string
+          example: Senin
+        open:
+          type: string
+          example: "08:30"
+        close:
+          type: string
+          example: "17:00"
+        closed:
+          type: boolean
+          example: false
+
+    MotorDisplayConfig:
+      type: object
+      description: "Defaults: showPrice true, showYear true, showStatus true, showKilometer false, showTax false."
+      properties:
+        showPrice:
+          type: boolean
+          example: true
+        showYear:
+          type: boolean
+          example: true
+        showStatus:
+          type: boolean
+          example: true
+        showKilometer:
+          type: boolean
+          example: false
+        showTax:
+          type: boolean
+          example: false
+
+    LandingConfigRequest:
+      type: object
+      properties:
+        location:
+          type: object
+          properties:
+            city:
+              type: string
+              example: Bandar Lampung
+            address:
+              type: string
+              example: Jl. Raden Intan No. 123
+            mapsUrl:
+              type: string
+              format: uri
+              example: "https://maps.google.com/..."
+        businessHours:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/BusinessHourItem"
+        motorDisplay:
+          $ref: "#/components/schemas/MotorDisplayConfig"
+
+    LandingConfigResponse:
+      type: object
+      properties:
+        tenant:
+          type: object
+          properties:
+            name:
+              type: string
+              example: Rully Motor
+            subdomain:
+              type: string
+              example: rullymotor
+            fullDomain:
+              type: string
+              example: rullymotor.otokas.com
+            logoUrl:
+              type: string
+              nullable: true
+              example: "https://cdn.example.com/logo.png"
+            templateKey:
+              type: string
+              example: t-003
+            primaryColor:
+              type: string
+              nullable: true
+              example: "#ff8c00"
+            whatsappNumber:
+              type: string
+              example: "6281234567890"
+        content:
+          type: object
+          properties:
+            whatsappNumber:
+              type: string
+              example: "6281234567890"
+            location:
+              type: object
+              properties:
+                city:
+                  type: string
+                  example: Bandar Lampung
+                address:
+                  type: string
+                  example: Jl. Raden Intan No. 123
+                mapsUrl:
+                  type: string
+                  format: uri
+                  example: "https://maps.google.com/..."
+            businessHours:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/BusinessHourItem"
+            motorDisplay:
+              $ref: "#/components/schemas/MotorDisplayConfig"
+        schemaVersion:
+          type: string
+          example: v1
+
+    # ---------------- Public Tenant ----------------
+    PublicTenantProfile:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Rully Motor
+        subdomain:
+          type: string
+          example: rullymotor
+        fullDomain:
+          type: string
+          example: rullymotor.otokas.com
+        logoUrl:
+          type: string
+          nullable: true
+          example: "https://cdn.example.com/logo.png"
+        templateKey:
+          type: string
+          example: t-003
+        whatsappNumber:
+          type: string
+          example: "6281234567890"
+
+    PublicMotor:
+      type: object
+      description: "Fields hidden by tenant motorDisplay config return null."
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: motor-uuid
+        title:
+          type: string
+          example: Honda Beat 2022
+        brand:
+          type: string
+          example: Honda
+        price:
+          type: number
+          nullable: true
+          example: 14500000
+        year:
+          type: integer
+          nullable: true
+          example: 2022
+        status:
+          type: string
+          nullable: true
+          example: AVAILABLE
+        kilometer:
+          type: integer
+          nullable: true
+          example: 12500
+        tax:
+          type: boolean
+          nullable: true
+          example: true
+        imageUrl:
+          type: string
+          format: uri
+          example: "https://cdn.otokas.com/image.jpg"
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 126
+        totalPages:
+          type: integer
+          example: 7
+        hasNextPage:
+          type: boolean
+          example: true
+        hasPreviousPage:
+          type: boolean
+          example: false
+        from:
+          type: integer
+          example: 1
+        to:
+          type: integer
+          example: 20
+
+    PublicMotorListingResponse:
+      type: object
+      properties:
+        tenant:
+          type: object
+          properties:
+            name:
+              type: string
+              example: Rully Motor
+            subdomain:
+              type: string
+              example: rullymotor
+            templateKey:
+              type: string
+              example: t-003
+            fullDomain:
+              type: string
+              example: rullymotor.otokas.com
+            whatsappNumber:
+              type: string
+              example: "6281234567890"
+        motors:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicMotor"
+        pagination:
+          $ref: "#/components/schemas/Pagination"

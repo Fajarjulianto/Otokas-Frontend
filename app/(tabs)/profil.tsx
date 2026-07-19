@@ -1,3 +1,7 @@
+import { useAuthContext } from "@/src/context/authContext";
+import { useLogout } from "@/src/hooks/useAuth";
+import { useSubscriptionStatus } from "@/src/hooks/useSubscription";
+import { useProfile } from "@/src/hooks/useUser";
 import { router } from "expo-router";
 import {
   ArrowLeft,
@@ -12,7 +16,14 @@ import {
   User,
 } from "lucide-react-native";
 import React from "react";
-import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const MenuItem = ({
@@ -24,7 +35,7 @@ const MenuItem = ({
   onPress,
   isHighlight = false,
 }: {
-  icon: any;
+  icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
   iconColor?: string;
   iconBg?: string;
   title: string;
@@ -57,6 +68,25 @@ const MenuItem = ({
 );
 
 export default function ProfileScreen() {
+  const { user } = useAuthContext();
+  const { data: profile, isLoading: profileLoading } = useProfile();
+  const { data: subscription } = useSubscriptionStatus();
+  const logoutMutation = useLogout();
+
+  const displayName = profile?.dealerName || user?.dealerName || "Dealer";
+  const displayEmail = profile?.email || user?.email || "";
+  const displayPhone = profile?.phoneNumber || "";
+  const displayAddress = profile?.address || "";
+  const initials = displayName
+    .split(" ")
+    .map((w: string) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const isPremium = subscription?.isPremium ?? user?.isPremium ?? false;
+  const planName = subscription?.plan || (isPremium ? "Juragan" : "Gratis");
+
   const handleFeatureNotReady = (featureName: string) => {
     Alert.alert(
       "Fitur Segera Hadir",
@@ -70,7 +100,12 @@ export default function ProfileScreen() {
       {
         text: "Keluar",
         style: "destructive",
-        onPress: () => router.replace("/"),
+        onPress: () => {
+          logoutMutation.mutate(undefined, {
+            onSuccess: () => router.replace("/"),
+            onError: () => router.replace("/"),
+          });
+        },
       },
     ]);
   };
@@ -92,18 +127,36 @@ export default function ProfileScreen() {
         <View className="flex-row items-center">
           {/* Avatar */}
           <View className="w-16 h-16 bg-amber-400 rounded-full items-center justify-center border-2 border-white">
-            <Text className="text-white text-2xl font-bold">AB</Text>
+            <Text className="text-white text-2xl font-bold">{initials}</Text>
           </View>
 
           {/* Info User */}
           <View className="ml-4 flex-1">
-            <Text className="text-white text-xl font-bold">Alex Bizher</Text>
-            <Text className="text-blue-200 text-sm mt-0.5">
-              Showroom Jaya Motor
-            </Text>
-            <View className="bg-orange-500/30 px-3 py-1 rounded-full mt-2 self-start border border-orange-400/50">
-              <Text className="text-orange-300 text-xs font-bold">
-                Paket Juragan
+            {profileLoading ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <>
+                <Text className="text-white text-xl font-bold">
+                  {displayName}
+                </Text>
+                <Text className="text-blue-200 text-sm mt-0.5">
+                  {displayEmail}
+                </Text>
+              </>
+            )}
+            <View
+              className={`px-3 py-1 rounded-full mt-2 self-start border ${
+                isPremium
+                  ? "bg-orange-500/30 border-orange-400/50"
+                  : "bg-white/10 border-white/20"
+              }`}
+            >
+              <Text
+                className={`text-xs font-bold ${
+                  isPremium ? "text-orange-300" : "text-blue-200"
+                }`}
+              >
+                Paket {planName}
               </Text>
             </View>
           </View>
@@ -129,19 +182,19 @@ export default function ProfileScreen() {
           <View className="flex-row items-center mb-3">
             <Phone size={16} color="#6B7280" strokeWidth={2} />
             <Text className="text-gray-600 ml-3 text-sm">
-              +62 812-3456-7890
+              {displayPhone || "Belum diisi"}
             </Text>
           </View>
           <View className="flex-row items-center mb-3">
             <Mail size={16} color="#6B7280" strokeWidth={2} />
             <Text className="text-gray-600 ml-3 text-sm">
-              budi@jayamotor.com
+              {displayEmail || "Belum diisi"}
             </Text>
           </View>
           <View className="flex-row items-center">
             <MapPin size={16} color="#6B7280" strokeWidth={2} />
             <Text className="text-gray-600 ml-3 text-sm flex-1">
-              Jl. Raya Lintas Timur, Unit 2, Tulang Bawang
+              {displayAddress || "Belum diisi"}
             </Text>
           </View>
         </View>
@@ -171,7 +224,7 @@ export default function ProfileScreen() {
             icon={User}
             title="Edit Profil"
             subtitle="Ubah nama dan info kontak"
-            onPress={() => handleFeatureNotReady("Edit Profil")}
+            onPress={() => router.push("/edit-profile")}
           />
           <MenuItem
             icon={Home}
@@ -190,12 +243,19 @@ export default function ProfileScreen() {
         {/* TOMBOL LOGOUT */}
         <TouchableOpacity
           onPress={handleLogout}
+          disabled={logoutMutation.isPending}
           className="bg-red-50 border border-red-100 flex-row justify-center items-center py-4 rounded-2xl"
         >
-          <LogOut size={20} color="#DC2626" strokeWidth={2} />
-          <Text className="text-red-600 font-bold ml-2 text-base">
-            Keluar dari Akun
-          </Text>
+          {logoutMutation.isPending ? (
+            <ActivityIndicator size="small" color="#DC2626" />
+          ) : (
+            <>
+              <LogOut size={20} color="#DC2626" strokeWidth={2} />
+              <Text className="text-red-600 font-bold ml-2 text-base">
+                Keluar dari Akun
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

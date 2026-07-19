@@ -1,39 +1,42 @@
-// import { AuthProvider } from "@/src/context/authContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
-import "react-native-url-polyfill/auto";
 import "../global.css";
+import { ErrorBoundary } from "../src/components/ErrorBoundary";
+import { AuthProvider } from "../src/context/authContext";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5,
+      staleTime: 5 * 60 * 1000, // 5 menit
       retry: 2,
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 1,
     },
   },
 });
 
 export default function RootLayout() {
   return (
-    <QueryClientProvider client={queryClient}>
-      {/* <AuthProvider> */}
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="unit/scan"
-          options={{ headerShown: true, title: "Scan STNK" }}
-        />
-        <Stack.Screen name="paket" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="payment/checkout"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen name="payment/result" options={{ headerShown: false }} />
-      </Stack>
-
-      {/* </AuthProvider> */}
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="unit/edit/[id]" />
+            <Stack.Screen name="unit/sold/[id]" />
+            <Stack.Screen
+              name="unit/scan"
+              options={{ presentation: "modal" }}
+            />
+            <Stack.Screen name="paket" />
+            <Stack.Screen name="payment/checkout" />
+            <Stack.Screen name="payment/result" />
+          </Stack>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

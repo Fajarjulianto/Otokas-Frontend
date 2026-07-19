@@ -9,7 +9,7 @@ import {
 import { View } from "react-native";
 
 export default function TabLayout() {
-  const primaryColor = "#1e3a8a"; // Blue-900
+  const primaryColor = "#1E40AF"; // Blue-800
   const accentColor = "#f59e0b"; // Amber-500
   const router = useRouter();
   return (
@@ -54,11 +54,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="tambah"
         options={{
-          title: "Tambah",
-          tabBarLabelStyle: { color: accentColor, fontWeight: "700" },
+          title: "",
           tabBarIcon: () => (
-            <View className="bg-amber-100 p-1 rounded-full -mt-4 shadow-sm">
-              <PlusCircle color={accentColor} size={32} strokeWidth={2.5} />
+            <View className="bg-amber-100 p-2 rounded-full -mt-6 shadow-sm">
+              <PlusCircle color={accentColor} size={44} strokeWidth={2.5} />
             </View>
           ),
         }}

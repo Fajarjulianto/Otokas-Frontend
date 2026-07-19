@@ -142,7 +142,7 @@ export default function PaymentResultScreen() {
           <View className="flex-row items-center justify-center gap-2 mb-6">
             <CreditCard size={14} color="#94a3b8" strokeWidth={2} />
             <Text className="text-slate-400 text-xs">
-              Diproses oleh Midtrans Payment Gateway
+              Diproses oleh Xendit Payment Gateway
             </Text>
           </View>
 

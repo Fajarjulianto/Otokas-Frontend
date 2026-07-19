@@ -1,80 +1,35 @@
 import {
-  DateRangePicker,
-  formatDateID,
-} from "@/src/components/DateRangePicker";
-import { useDateRangePicker } from "@/src/hooks/useDateRangePicker";
-import { router } from "expo-router";
+  useDailySellingReport,
+  useWeeklySellingReport,
+} from "@/src/hooks/useAnalytics";
+import { useDashboardStats, useMotors } from "@/src/hooks/useMotors";
+import {
+  formatDateParam,
+  formatMonthParam,
+} from "@/src/services/analyticsServices";
+import { DisplayData } from "@/src/types/report";
+import { formatRupiah } from "@/src/utils/formatRupiah";
+import { useRouter } from "expo-router";
 import {
   ArrowLeft,
   BarChart2,
   Bike,
   Download,
+  Plus,
   TrendingDown,
   TrendingUp,
   Wallet,
 } from "lucide-react-native";
-import React from "react";
-import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-const summaryStats = [
-  {
-    icon: Wallet,
-    iconColor: "#10B981",
-    title: "Total Pendapatan",
-    value: "Rp 1.42M",
-    trend: "+14.5%",
-    isPositive: true,
-  },
-  {
-    icon: Bike,
-    iconColor: "#1e3a8a",
-    title: "Total Terjual",
-    value: "95 unit",
-    trend: "+8 unit",
-    isPositive: true,
-  },
-  {
-    icon: BarChart2,
-    iconColor: "#f59e0b",
-    title: "Rata-rata Margin",
-    value: "15.2%",
-    trend: "-0.8%",
-    isPositive: false,
-  },
-  {
-    icon: Wallet,
-    iconColor: "#6366f1",
-    title: "Harga Rata-rata",
-    value: "Rp 18.9jt",
-    trend: "+Rp 1.2jt",
-    isPositive: true,
-  },
-];
-
-const bestSellers = [
-  { name: "Honda Vario 125", units: 14 },
-  { name: "Yamaha NMAX 155", units: 11 },
-  { name: "Honda Beat", units: 10 },
-  { name: "Honda PCX 160", units: 8 },
-  { name: "Kawasaki Ninja 250", units: 6 },
-];
-
-const revenueData = [
-  { month: "Sep", value: 180 },
-  { month: "Okt", value: 220 },
-  { month: "Nov", value: 200 },
-  { month: "Des", value: 320 },
-  { month: "Jan", value: 240 },
-  { month: "Feb", value: 280 },
-];
-
-const maxRevenue = Math.max(...revenueData.map((d) => d.value));
-const maxUnits = bestSellers[0]?.units ?? 1;
-
-// ─────────────────────────────────────────
-// Komponen: Kartu Statistik
-// ─────────────────────────────────────────
 type StatCardProps = {
   icon: React.ComponentType<{
     size: number;
@@ -84,8 +39,8 @@ type StatCardProps = {
   iconColor: string;
   title: string;
   value: string;
-  trend: string;
-  isPositive: boolean;
+  trend?: string;
+  isPositive?: boolean;
 };
 
 function StatCard({
@@ -94,7 +49,7 @@ function StatCard({
   title,
   value,
   trend,
-  isPositive,
+  isPositive = true,
 }: StatCardProps) {
   return (
     <View
@@ -127,39 +82,42 @@ function StatCard({
         {value}
       </Text>
 
-      <View
-        className={`flex-row items-center gap-1 self-start px-2 py-0.5 rounded-full ${
-          isPositive ? "bg-emerald-50" : "bg-red-50"
-        }`}
-      >
-        {isPositive ? (
-          <TrendingUp size={11} color="#10b981" strokeWidth={2.5} />
-        ) : (
-          <TrendingDown size={11} color="#ef4444" strokeWidth={2.5} />
-        )}
-        <Text
-          className={`text-xs font-bold ${
-            isPositive ? "text-emerald-600" : "text-red-500"
+      {trend && (
+        <View
+          className={`flex-row items-center gap-1 self-start px-2 py-0.5 rounded-full ${
+            isPositive ? "bg-emerald-50" : "bg-red-50"
           }`}
         >
-          {trend}
-        </Text>
-      </View>
+          {isPositive ? (
+            <TrendingUp size={11} color="#10b981" strokeWidth={2.5} />
+          ) : (
+            <TrendingDown size={11} color="#ef4444" strokeWidth={2.5} />
+          )}
+          <Text
+            className={`text-xs font-bold ${
+              isPositive ? "text-emerald-600" : "text-red-500"
+            }`}
+          >
+            {trend}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
 
-// ─────────────────────────────────────────
-// Komponen: Item Motor Terlaris
-// ─────────────────────────────────────────
-function MotorItem({
-  item,
+function SoldMotorItem({
+  name,
+  value,
   rank,
+  maxValue,
 }: {
-  item: (typeof bestSellers)[0];
+  name: string;
+  value: number;
   rank: number;
+  maxValue: number;
 }) {
-  const percentage = (item.units / maxUnits) * 100;
+  const percentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
 
   return (
     <View className="mb-3">
@@ -170,11 +128,11 @@ function MotorItem({
             className="text-slate-800 font-semibold text-base flex-1"
             numberOfLines={1}
           >
-            {item.name}
+            {name}
           </Text>
         </View>
         <Text className="text-slate-900 font-bold text-sm ml-2">
-          {item.units} unit
+          {formatRupiah(value)}
         </Text>
       </View>
       <View
@@ -191,29 +149,92 @@ function MotorItem({
 }
 
 export default function LaporanScreen() {
-  const picker = useDateRangePicker({
-    startDate: new Date(2026, 4, 1),
-    endDate: new Date(2026, 5, 20),
-  });
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"harian" | "mingguan" | "bulanan">(
+    "bulanan",
+  );
+  const today = new Date();
+  const dateParam = formatDateParam(today);
+  const monthParam = formatMonthParam(today);
+
+  // 3. Fetching data — hanya fetch tab yang sedang aktif
+  const { data: motors, isLoading: motorsLoading } = useMotors();
+  const { data: stats, isLoading: statsLoading } =
+    useDashboardStats(monthParam);
+  const { data: dailyReport, isLoading: dailyLoading } = useDailySellingReport(
+    activeTab === "harian" ? dateParam : "",
+  );
+  const { data: weeklyReport, isLoading: weeklyLoading } =
+    useWeeklySellingReport(activeTab === "mingguan" ? dateParam : "");
+
+  const isLoading =
+    motorsLoading ||
+    statsLoading ||
+    (activeTab === "harian" && dailyLoading) ||
+    (activeTab === "mingguan" && weeklyLoading);
+  const hasNoMotors = !motorsLoading && (motors ?? []).length === 0;
+
+  let currentDisplay: DisplayData = {
+    revenue: 0,
+    sold: 0,
+    margin: 0,
+    profit: 0,
+    motors: [],
+  };
+
+  if (activeTab === "harian") {
+    const entries = dailyReport ?? [];
+    currentDisplay = {
+      revenue: entries.reduce((sum, e) => sum + (e.revenue ?? 0), 0),
+      sold: entries.reduce((sum, e) => sum + (e.count ?? 0), 0),
+      margin: 0,
+      profit: 0,
+      motors: entries.flatMap((e) => e.motors ?? []),
+    };
+  } else if (activeTab === "mingguan") {
+    const entries = weeklyReport ?? [];
+    currentDisplay = {
+      revenue: entries.reduce((sum, e) => sum + (e.revenue ?? 0), 0),
+      sold: entries.reduce((sum, e) => sum + (e.count ?? 0), 0),
+      margin: 0,
+      profit: 0,
+      motors: entries.flatMap((e) => e.motors ?? []),
+    };
+  } else {
+    // Bulanan
+    currentDisplay = {
+      revenue: stats?.currentMonthRevenue ?? 0,
+      sold: stats?.sold ?? 0,
+      margin: stats?.marginAverage ?? 0,
+      profit: stats?.currentMonthProfit ?? 0,
+      motors: [],
+    };
+  }
+
+  const maxValue =
+    currentDisplay.motors.length > 0
+      ? Math.max(...currentDisplay.motors.map((m) => m.sellingPrice ?? 0))
+      : 1;
 
   function handleDownload() {
     Alert.alert(
       "Laporan Berhasil Diunduh",
-      `Laporan Excel periode ${formatDateID(picker.range.startDate)} – ${formatDateID(picker.range.endDate)} sudah terunduh.`,
+      `Laporan Excel periode ${activeTab} ini sudah terunduh.`,
       [{ text: "Oke" }],
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-100" edges={["top"]}>
-      <View className="bg-otokas-primary px-6 pt-4 pb-5 rounded-b-xl">
+    <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
+      {/* ── HEADER ── */}
+      <View className="bg-otokas-primary px-6 pt-4 pb-5 rounded-b-[24px]">
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center">
             <TouchableOpacity
               onPress={() => router.back()}
               className="w-10 h-10 bg-white/10 rounded-full items-center justify-center"
             >
-              <ArrowLeft className="arrow-left" size={24} color="white" />
+              <ArrowLeft size={24} color="white" strokeWidth={2} />
             </TouchableOpacity>
             <Text className="text-white text-2xl font-bold ml-3">Laporan</Text>
           </View>
@@ -232,120 +253,161 @@ export default function LaporanScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           padding: 20,
-          paddingTop: 0,
+          paddingTop: 10,
           paddingBottom: 100,
         }}
       >
-        {/* ── DATE RANGE SELECTOR ── */}
-        <View
-          className="bg-white rounded-2xl p-4 mt-6 mb-5 flex-row items-center gap-3"
-          style={{
-            elevation: 4,
-            shadowColor: "#000",
-            shadowOpacity: 0.08,
-            shadowRadius: 12,
-            shadowOffset: { width: 0, height: 4 },
-          }}
-        >
-          <TouchableOpacity
-            onPress={() => picker.open("start")}
-            className="flex-1 flex-row items-center gap-2 bg-otokas-primary px-3 py-2.5 rounded-xl"
-          >
-            <Text className="text-white text-sm font-semibold">
-              {formatDateID(picker.range.startDate)}
+        {/* ── CAPSULE TAB FILTER ── */}
+        <View className="bg-slate-100 p-1 rounded-full flex-row items-center mt-2 mb-6">
+          {(["harian", "mingguan", "bulanan"] as const).map((tab) => {
+            const isActive = activeTab === tab;
+            return (
+              <TouchableOpacity
+                key={tab}
+                onPress={() => setActiveTab(tab)}
+                activeOpacity={0.8}
+                className={`flex-1 py-2.5 rounded-full items-center justify-center ${
+                  isActive ? "bg-white" : ""
+                }`}
+                style={
+                  isActive
+                    ? {
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 2,
+                        elevation: 2,
+                      }
+                    : {}
+                }
+              >
+                <Text
+                  className={`text-sm capitalize ${
+                    isActive
+                      ? "font-bold text-slate-800"
+                      : "font-medium text-slate-500"
+                  }`}
+                >
+                  {tab}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {isLoading ? (
+          <View className="items-center py-16">
+            <ActivityIndicator size="large" color="#1e3a8a" />
+            <Text className="text-slate-400 text-sm mt-3">
+              Memuat laporan...
             </Text>
-          </TouchableOpacity>
-
-          <Text className="text-slate-300 font-medium">—</Text>
-
-          <TouchableOpacity
-            onPress={() => picker.open("end")}
-            className="flex-1 flex-row items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl"
-          >
-            <Text className="text-slate-600 text-sm font-medium">
-              {formatDateID(picker.range.endDate)}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View className="flex-row gap-3 mb-3">
-          <StatCard {...summaryStats[0]} />
-          <StatCard {...summaryStats[1]} />
-        </View>
-        <View className="flex-row gap-3 mb-5">
-          <StatCard {...summaryStats[2]} />
-          <StatCard {...summaryStats[3]} />
-        </View>
-
-        <View
-          className="bg-white rounded-2xl p-5 mb-5"
-          style={{
-            elevation: 2,
-            shadowColor: "#000",
-            shadowOpacity: 0.06,
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 2 },
-          }}
-        >
-          <Text className="text-slate-800 font-bold text-base mb-1">
-            Pendapatan 6 Bulan Terakhir
-          </Text>
-          <Text className="text-slate-400 text-xs mb-5">dalam juta Rupiah</Text>
-
-          <View className="flex-row items-end justify-between h-40 gap-2">
-            {revenueData.map((d, i) => {
-              const heightPct = (d.value / maxRevenue) * 100;
-              const isHighest = d.value === maxRevenue;
-              return (
-                <View key={i} className="flex-1 items-center gap-2">
-                  <Text className="text-slate-400 text-xs">{d.value}</Text>
-                  <View
-                    className="w-full bg-slate-100 rounded-t-xl overflow-hidden"
-                    style={{ height: 100 }}
-                  >
-                    <View
-                      className={`w-full rounded-t-xl absolute bottom-0 ${
-                        isHighest ? "bg-amber-400" : "bg-otokas-primary"
-                      }`}
-                      style={{ height: `${heightPct}%` }}
-                    />
-                  </View>
-                  <Text className="text-slate-500 text-xs font-medium">
-                    {d.month}
-                  </Text>
-                </View>
-              );
-            })}
           </View>
-        </View>
+        ) : hasNoMotors ? (
+          /* ── EMPTY STATE ── */
+          <View className="items-center justify-center px-4 py-8">
+            <View
+              className="bg-white rounded-3xl p-10 items-center w-full"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.06,
+                shadowRadius: 12,
+                elevation: 3,
+              }}
+            >
+              <View className="w-20 h-20 bg-slate-100 rounded-full items-center justify-center mb-5">
+                <BarChart2 size={40} color="#cbd5e1" strokeWidth={1.5} />
+              </View>
+              <Text className="text-slate-800 font-bold text-lg text-center">
+                Belum Ada Laporan
+              </Text>
+              <Text className="text-slate-400 text-sm text-center mt-2 leading-5">
+                Laporan penjualan akan muncul setelah{"\n"}Anda menambahkan dan
+                menjual motor.
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push("/(tabs)/tambah")}
+                className="mt-6 bg-amber-400 px-6 py-3 rounded-xl flex-row items-center gap-2"
+                style={{
+                  shadowColor: "#f59e0b",
+                  shadowOffset: { width: 0, height: 3 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 6,
+                  elevation: 4,
+                }}
+              >
+                <Plus size={18} color="white" strokeWidth={2.5} />
+                <Text className="text-white font-bold text-base">
+                  Tambah Unit
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <>
+            {/* ── STATS CARDS DINAMIS ── */}
+            <View className="flex-row gap-3 mb-3">
+              <StatCard
+                icon={Wallet}
+                iconColor="#10B981"
+                title="Total Pendapatan"
+                value={formatRupiah(currentDisplay.revenue)}
+              />
+              <StatCard
+                icon={Bike}
+                iconColor="#1e3a8a"
+                title="Total Terjual"
+                value={`${currentDisplay.sold} unit`}
+              />
+            </View>
+            <View className="flex-row gap-3 mb-5">
+              <StatCard
+                icon={BarChart2}
+                iconColor="#f59e0b"
+                title="Rata-rata Margin"
+                value={`${currentDisplay.margin}%`}
+              />
+              <StatCard
+                icon={Wallet}
+                iconColor="#6366f1"
+                title="Keuntungan"
+                value={formatRupiah(currentDisplay.profit)}
+              />
+            </View>
 
-        <View
-          className="bg-white rounded-2xl p-5 mb-5"
-          style={{
-            elevation: 2,
-            shadowColor: "#000",
-            shadowOpacity: 0.06,
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 2 },
-          }}
-        >
-          <Text className="text-slate-800 font-bold text-base mb-5">
-            Motor Terlaris
-          </Text>
-          {bestSellers.map((item, i) => (
-            <MotorItem key={i} item={item} rank={i + 1} />
-          ))}
-        </View>
+            {/* ── DAFTAR MOTOR TERJUAL DINAMIS ── */}
+            <View
+              className="bg-white rounded-2xl p-5 mb-5"
+              style={{
+                elevation: 2,
+                shadowColor: "#000",
+                shadowOpacity: 0.06,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 2 },
+              }}
+            >
+              <Text className="text-slate-800 font-bold text-base mb-5">
+                Motor Terjual ({activeTab})
+              </Text>
+              {currentDisplay.motors.length > 0 ? (
+                currentDisplay.motors.map((item, i) => (
+                  <SoldMotorItem
+                    key={item.id || i}
+                    name={`${item.brand} ${item.name}`}
+                    value={item.sellingPrice}
+                    rank={i + 1}
+                    maxValue={maxValue}
+                  />
+                ))
+              ) : (
+                <Text className="text-slate-400 text-sm text-center py-4">
+                  Belum ada motor terjual pada periode ini.
+                </Text>
+              )}
+            </View>
+          </>
+        )}
       </ScrollView>
-
-      <DateRangePicker
-        visible={picker.isOpen}
-        tempRange={picker.tempRange}
-        step={picker.step}
-        onSelect={picker.selectDate}
-        onConfirm={picker.confirm}
-        onClose={picker.close}
-      />
     </SafeAreaView>
   );
 }

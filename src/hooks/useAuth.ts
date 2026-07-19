@@ -1,53 +1,49 @@
-import { supabase } from "@/src/lib/supabase";
+import { useAuthContext } from "@/src/context/authContext";
 import type {
   LoginPayload,
   RegisterPayload,
 } from "@/src/services/authServices";
 import { login, logout, register } from "@/src/services/authServices";
-import { Session } from "@supabase/supabase-js";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
 
-//Global State
 export function useAuth() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  return { session, loading, user: session?.user ?? null };
+  const { user, isLoading } = useAuthContext();
+  return { user, loading: isLoading, isAuthenticated: !!user };
 }
 
 // ── Register ──
 export function useRegister() {
   return useMutation({
-    mutationFn: (payload: RegisterPayload) => register(payload),
+    mutationFn: async (payload: RegisterPayload) => {
+      const response = await register(payload);
+      return response;
+    },
   });
 }
 
 // ── Login ──
+// Di dalam src/hooks/useAuth.ts
 export function useLogin() {
   return useMutation({
-    mutationFn: (payload: LoginPayload) => login(payload),
+    mutationFn: async (payload: LoginPayload) => {
+      const response = await login(payload);
+      if (!response.access_token) {
+        throw new Error("Token tidak ditemukan dari server.");
+      }
+      return response;
+    },
   });
 }
 
 // ── Logout ──
 export function useLogout() {
+  const { signOut } = useAuthContext();
   return useMutation({
-    mutationFn: logout,
+    mutationFn: async () => {
+      try {
+        await logout();
+      } catch {}
+      await signOut();
+    },
   });
 }

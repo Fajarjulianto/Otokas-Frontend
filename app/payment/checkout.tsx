@@ -1,3 +1,4 @@
+import { useCheckoutSubscription } from "@/src/hooks/useSubscription";
 import { useRouter } from "expo-router";
 import {
   ArrowLeft,
@@ -8,6 +9,7 @@ import {
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   ImageSourcePropType,
   ScrollView,
@@ -18,11 +20,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // ─── Dummy Order ───
-const DUMMY_ORDER = {
-  orderId: "OTOKAS-20260408",
-  amount: 200000,
+const ORDER_INFO = {
   paket: "Paket Juragan",
   periode: "1 Bulan",
+  amount: 200000,
 };
 
 // ─── Metode Pembayaran ───
@@ -91,31 +92,39 @@ const CATEGORIES = [...new Set(PAYMENT_METHODS.map((m) => m.category))];
 export default function CheckoutScreen() {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const checkoutMutation = useCheckoutSubscription();
 
   const selectedMethod = PAYMENT_METHODS.find((m) => m.id === selected);
-  const formattedAmount = `Rp ${DUMMY_ORDER.amount.toLocaleString("id-ID")}`;
+  const formattedAmount = `Rp ${ORDER_INFO.amount.toLocaleString("id-ID")}`;
 
-  function handleBayar() {
+  async function handleBayar() {
     if (!selected) return;
-    setIsProcessing(true);
 
-    setTimeout(() => {
-      setIsProcessing(false);
-      router.replace({
-        pathname: "/payment/result",
-        params: {
-          status: "success",
-          orderId: DUMMY_ORDER.orderId,
-          amount: String(DUMMY_ORDER.amount),
-          paymentType: selectedMethod?.name ?? "Midtrans",
-        },
-      });
-    }, 2000);
+    checkoutMutation.mutate(undefined, {
+      onSuccess: (data) => {
+        // README §6: open the Xendit invoice_url, then poll subscription status.
+        router.replace({
+          pathname: "/payment/result",
+          params: {
+            status: "pending",
+            orderId: data.external_id,
+            amount: String(ORDER_INFO.amount),
+            paymentType: selectedMethod?.name ?? "Xendit",
+            redirectUrl: data.invoice_url,
+          },
+        });
+      },
+      onError: (error) => {
+        Alert.alert(
+          "Pembayaran Gagal",
+          error.message || "Gagal memproses pembayaran. Coba lagi.",
+        );
+      },
+    });
   }
 
   // ── Loading processing ──
-  if (isProcessing) {
+  if (checkoutMutation.isPending) {
     return (
       <SafeAreaView
         className="flex-1 bg-white items-center justify-center px-8"
@@ -151,14 +160,7 @@ export default function CheckoutScreen() {
           <Text className="text-white text-lg font-bold">
             Konfirmasi Pembayaran
           </Text>
-          {/* <Text className="text-blue-200 text-sm">
-            {DUMMY_ORDER.paket} — {formattedAmount}/bulan
-          </Text> */}
         </View>
-        {/* <View className="flex-row items-center gap-1 bg-white/10 px-2.5 py-1 rounded-xl">
-          <Lock size={12} color="#93c5fd" strokeWidth={2} />
-          <Text className="text-blue-200 text-xs">Aman</Text>
-        </View> */}
       </View>
 
       <ScrollView
@@ -180,21 +182,15 @@ export default function CheckoutScreen() {
             Ringkasan Order
           </Text>
           <View className="flex-row justify-between items-center mb-2">
-            <Text className="text-slate-500 text-sm">Order ID</Text>
-            <Text className="text-slate-700 text-sm font-medium">
-              {DUMMY_ORDER.orderId}
-            </Text>
-          </View>
-          <View className="flex-row justify-between items-center mb-2">
             <Text className="text-slate-500 text-sm">Paket</Text>
             <Text className="text-slate-700 text-sm font-semibold">
-              {DUMMY_ORDER.paket}
+              {ORDER_INFO.paket}
             </Text>
           </View>
           <View className="flex-row justify-between items-center mb-2">
             <Text className="text-slate-500 text-sm">Periode</Text>
             <Text className="text-slate-700 text-sm font-semibold">
-              {DUMMY_ORDER.periode}
+              {ORDER_INFO.periode}
             </Text>
           </View>
           <View className="h-px bg-slate-100 my-3" />
@@ -261,13 +257,6 @@ export default function CheckoutScreen() {
             </View>
           </View>
         ))}
-
-        <View className="flex-row items-center justify-center gap-2 mt-1">
-          {/* <Shield size={14} color="#94a3b8" strokeWidth={2} /> */}
-          {/* <Text className="text-slate-400 text-xs">
-            Transaksi diproses oleh Midtrans Payment Gateway
-          </Text> */}
-        </View>
       </ScrollView>
 
       {/* TOMBOL BAYAR sticky */}

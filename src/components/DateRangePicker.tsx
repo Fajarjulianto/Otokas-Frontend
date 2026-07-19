@@ -233,7 +233,7 @@ export function DateRangePicker({
             <Text
               className={`text-xs mb-0.5 ${step === "start" ? "text-blue-200" : "text-slate-400"}`}
             >
-              Mulai
+              Dari Tanggal
             </Text>
             <Text
               className={`text-sm font-bold ${
@@ -256,7 +256,7 @@ export function DateRangePicker({
             <Text
               className={`text-xs mb-0.5 ${step === "end" ? "text-amber-100" : "text-slate-400"}`}
             >
-              Selesai
+              Sampai Tanggal
             </Text>
             <Text
               className={`text-sm font-bold ${

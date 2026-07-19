@@ -1,8 +1,14 @@
 export function formatRupiah(value: number): string {
-  if (value >= 1000000) {
-    return `Rp ${(value / 1000000).toFixed(1)}jt`;
-  }
-  return `Rp ${value.toLocaleString("id-ID")}`;
+  if (value === null || value === undefined) return "Rp 0";
+
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
+    .format(value)
+    .replace("IDR", "Rp ");
 }
 
 export function formatRupiahInput(raw: string): string {
@@ -12,5 +18,6 @@ export function formatRupiahInput(raw: string): string {
 }
 
 export function parseRupiah(formatted: string): number {
+  if (!formatted) return 0;
   return Number(formatted.replace(/\./g, ""));
 }

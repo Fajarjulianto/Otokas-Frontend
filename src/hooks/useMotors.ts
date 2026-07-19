@@ -1,6 +1,7 @@
 import {
   deleteMotor,
   fetchDashboardStats,
+  fetchMotorById,
   fetchMotors,
   insertMotor,
   markAsSold,
@@ -10,24 +11,35 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export const motorKeys = {
-  all: ["motors"] as const,
-  stats: (month?: string) => ["motors", "stats", month ?? "current"] as const,
+  all: Object.freeze(["motors"] as const),
+
+  detail: (id: string) => Object.freeze(["motors", "detail", id] as const),
+
+  stats: (month?: string) =>
+    Object.freeze(["motors", "stats", month ?? "current"] as const),
 };
 
 export function useMotors() {
   return useQuery({
     queryKey: motorKeys.all,
-    queryFn: fetchMotors,
+    queryFn: () => fetchMotors(),
+  });
+}
+
+export function useMotorById(id: string) {
+  return useQuery({
+    queryKey: motorKeys.detail(id),
+    queryFn: () => fetchMotorById(id),
+    enabled: !!id,
   });
 }
 
 export function useDashboardStats(month?: string) {
   return useQuery({
-    queryKey: motorKeys.stats(month),
+    queryKey: ["dashboard", "stats", month],
     queryFn: () => fetchDashboardStats(month),
   });
 }
-
 export function useInsertMotor() {
   const queryClient = useQueryClient();
   return useMutation({

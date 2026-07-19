@@ -1,12 +1,24 @@
 import {
+  useDeleteMotor,
+  useMarkAsSold,
+  useMotors,
+} from "@/src/hooks/useMotors";
+import type { Motor } from "@/src/types/motor";
+import { formatRupiah } from "@/src/utils/formatRupiah";
+import { useRouter } from "expo-router";
+import {
   AlertCircle,
   Bike,
   CheckCircle,
-  ClipboardList,
+  Edit3,
+  Plus,
   Search,
+  Trash2,
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Text,
   TextInput,
@@ -15,66 +27,57 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type MotorItem = {
-  id: number;
-  brand: string;
-  name: string;
-  year?: number;
-  buyingPrice: number;
-  sellingPrice?: number;
-  isIncomplete: boolean;
-};
-
-// ─── Dummy Data Motor
-const DUMMY_MOTORS: MotorItem[] = [
-  {
-    id: 1,
-    brand: "Honda",
-    name: "Beat Street",
-    year: 2022,
-    buyingPrice: 12000000,
-    sellingPrice: 14500000,
-    isIncomplete: false,
-  },
-  {
-    id: 2,
-    brand: "Yamaha",
-    name: "Mio M3",
-    year: 2021,
-    buyingPrice: 10500000,
-    sellingPrice: undefined,
-    isIncomplete: true,
-  },
-  {
-    id: 3,
-    brand: "Honda",
-    name: "Vario 125",
-    year: undefined,
-    buyingPrice: 15000000,
-    sellingPrice: 17000000,
-    isIncomplete: true,
-  },
-  {
-    id: 4,
-    brand: "Suzuki",
-    name: "Satria F150",
-    year: 2020,
-    buyingPrice: 16000000,
-    sellingPrice: 18500000,
-    isIncomplete: false,
-  },
-];
-
-function formatRupiah(value: number): string {
-  if (value >= 1000000) return `Rp ${(value / 1000000).toFixed(1)}jt`;
-  return `Rp ${value.toLocaleString("id-ID")}`;
-}
-
 // ─── Kartu Motor ───
-function MotorCard({ item }: { item: MotorItem }) {
+const MotorCard = React.memo(function MotorCard({
+  item,
+  onMarkSold,
+  onDelete,
+  isSelling,
+  isDeleting,
+}: {
+  item: Motor;
+  onMarkSold: (id: string) => void;
+  onDelete: (id: string) => void;
+  isSelling: boolean;
+  isDeleting: boolean;
+}) {
+  const router = useRouter();
+  const isSold = item.status === "SOLD";
+
+  function handleMarkSold() {
+    Alert.alert(
+      "Tandai Terjual",
+      `Yakin ${item.brand} ${item.name} sudah terjual?`,
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Ya, Terjual",
+          onPress: () => onMarkSold(item.id),
+        },
+      ],
+    );
+  }
+
+  function handleDelete() {
+    Alert.alert(
+      "Hapus Motor",
+      `Yakin ingin menghapus ${item.brand} ${item.name}?`,
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Hapus",
+          style: "destructive",
+          onPress: () => onDelete(item.id),
+        },
+      ],
+    );
+  }
+
   return (
     <View
-      className="bg-white rounded-2xl mb-3 overflow-hidden"
+      className={`bg-white rounded-2xl mb-3 overflow-hidden ${
+        isSold ? "opacity-60" : ""
+      }`}
       style={{
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
@@ -85,7 +88,11 @@ function MotorCard({ item }: { item: MotorItem }) {
     >
       <View
         className={`h-1 w-full ${
-          item.isIncomplete ? "bg-amber-400" : "bg-otokas-primary"
+          isSold
+            ? "bg-slate-300"
+            : item.isIncomplete
+              ? "bg-amber-400"
+              : "bg-otokas-primary"
         }`}
       />
 
@@ -101,7 +108,13 @@ function MotorCard({ item }: { item: MotorItem }) {
           </View>
 
           {/* Badge status */}
-          {item.isIncomplete ? (
+          {isSold ? (
+            <View className="bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-xl">
+              <Text className="text-slate-500 text-xs font-semibold">
+                Sudah Terjual
+              </Text>
+            </View>
+          ) : item.isIncomplete ? (
             <View className="bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-xl flex-row items-center gap-1">
               <AlertCircle size={12} color="#d97706" />
               <Text className="text-amber-700 text-xs font-semibold">
@@ -132,44 +145,83 @@ function MotorCard({ item }: { item: MotorItem }) {
         </View>
 
         <View className="flex-row items-center gap-2 mt-3 pt-3 border-t border-slate-100">
-          <TouchableOpacity className="flex-1 bg-otokas-primary flex-row items-center justify-center gap-2 py-3 rounded-xl">
-            <CheckCircle size={16} color="white" strokeWidth={2.5} />
-            <Text className="text-white font-semibold text-sm">
-              Tandai Terjual
-            </Text>
+          <TouchableOpacity
+            onPress={handleMarkSold}
+            disabled={isSelling || isDeleting || isSold}
+            className={`flex-1 flex-row items-center justify-center gap-2 py-3 rounded-xl ${
+              isSold ? "bg-slate-200" : "bg-otokas-primary"
+            }`}
+          >
+            {isSelling ? (
+              <ActivityIndicator
+                size="small"
+                color={isSold ? "#64748b" : "white"}
+              />
+            ) : (
+              <>
+                <CheckCircle
+                  size={16}
+                  color={isSold ? "#64748b" : "white"}
+                  strokeWidth={2.5}
+                />
+                <Text
+                  className={`font-semibold text-sm ${
+                    isSold ? "text-slate-500" : "text-white"
+                  }`}
+                >
+                  {isSold ? "Sudah Terjual" : "Tandai Terjual"}
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
 
-          {item.isIncomplete && (
-            <TouchableOpacity
-              // onPress={() => router.push(`/unit/${item.id}/edit`)}
-              className="flex-row items-center gap-1.5 px-3 py-3 rounded-xl border border-amber-200 bg-amber-50"
-            >
-              <ClipboardList size={16} color="#d97706" />
-              <Text className="text-amber-700 font-semibold text-sm">
-                Lengkapi
-              </Text>
-            </TouchableOpacity>
-          )}
+          {/* Tombol Edit */}
+          <TouchableOpacity
+            onPress={() => router.push(`/unit/${item.id}/edit`)}
+            disabled={isSold}
+            className="w-11 h-11 rounded-xl border border-slate-200 bg-white items-center justify-center"
+          >
+            <Edit3 size={16} color="#475569" />
+          </TouchableOpacity>
+
+          {/* Tombol Hapus */}
+          <TouchableOpacity
+            onPress={handleDelete}
+            disabled={isDeleting || isSelling}
+            className="w-11 h-11 rounded-xl border border-red-200 bg-red-50 items-center justify-center"
+          >
+            {isDeleting ? (
+              <ActivityIndicator size="small" color="#DC2626" />
+            ) : (
+              <Trash2 size={16} color="#DC2626" />
+            )}
+          </TouchableOpacity>
         </View>
       </View>
     </View>
   );
-}
+});
 
 // ─── Main ───
 export default function StokPage() {
+  const router = useRouter();
   const [search, setSearch] = useState("");
+  const { data: motors, isLoading, isError, refetch } = useMotors();
+  const markAsSoldMutation = useMarkAsSold();
+  const deleteMotorMutation = useDeleteMotor();
 
-  const filtered = DUMMY_MOTORS.filter((m) => {
+  const motorList = motors ?? [];
+
+  const filtered = motorList.filter((m) => {
     const q = search.toLowerCase();
     return (
       m.brand.toLowerCase().includes(q) ||
       m.name.toLowerCase().includes(q) ||
-      String(m.year).includes(q)
+      String(m.year ?? "").includes(q)
     );
   });
 
-  const totalStok = DUMMY_MOTORS.length;
+  const totalStok = motorList.length;
 
   return (
     <SafeAreaView className="flex-1 bg-slate-100" edges={["top"]}>
@@ -213,25 +265,104 @@ export default function StokPage() {
       </View>
 
       {/* LIST */}
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => <MotorCard item={item} />}
-        contentContainerStyle={{
-          padding: 20,
-          paddingTop: 12,
-          paddingBottom: 100,
-        }}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View className="items-center justify-center py-16">
-            <Bike size={40} color="#cbd5e1" strokeWidth={1.5} />
-            <Text className="text-slate-400 text-base mt-3">
-              Tidak ada unit ditemukan
+      {isLoading ? (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#1e3a8a" />
+          <Text className="text-slate-400 text-sm mt-3">Memuat stok...</Text>
+        </View>
+      ) : isError ? (
+        <View className="flex-1 items-center justify-center px-8">
+          <Text className="text-slate-400 text-base text-center mb-4">
+            Gagal memuat data stok. Coba lagi.
+          </Text>
+          <TouchableOpacity
+            onPress={() => refetch()}
+            className="bg-otokas-primary px-6 py-3 rounded-xl"
+          >
+            <Text className="text-white font-semibold">Muat Ulang</Text>
+          </TouchableOpacity>
+        </View>
+      ) : totalStok === 0 ? (
+        /* ── EMPTY STATE: Belum ada motor sama sekali ── */
+        <View className="flex-1 items-center justify-center px-8">
+          <View
+            className="bg-white rounded-3xl p-10 items-center w-full"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.06,
+              shadowRadius: 12,
+              elevation: 3,
+            }}
+          >
+            <View className="w-20 h-20 bg-slate-100 rounded-full items-center justify-center mb-5">
+              <Bike size={40} color="#cbd5e1" strokeWidth={1.5} />
+            </View>
+            <Text className="text-slate-800 font-bold text-lg text-center">
+              Belum Ada Motor
             </Text>
+            <Text className="text-slate-400 text-sm text-center mt-2 leading-5">
+              Stok motor Anda masih kosong.{"\n"}Mulai tambahkan unit motor
+              pertama Anda.
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.push("/(tabs)/tambah")}
+              className="mt-6 bg-amber-400 px-6 py-3 rounded-xl flex-row items-center gap-2"
+              style={{
+                shadowColor: "#f59e0b",
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.3,
+                shadowRadius: 6,
+                elevation: 4,
+              }}
+            >
+              <Plus size={18} color="white" strokeWidth={2.5} />
+              <Text className="text-white font-bold text-base">
+                Tambah Unit
+              </Text>
+            </TouchableOpacity>
           </View>
-        }
-      />
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <MotorCard
+              item={item}
+              onMarkSold={(id) => markAsSoldMutation.mutate(id)}
+              onDelete={(id) => deleteMotorMutation.mutate(id)}
+              isSelling={
+                markAsSoldMutation.isPending &&
+                markAsSoldMutation.variables === item.id
+              }
+              isDeleting={
+                deleteMotorMutation.isPending &&
+                deleteMotorMutation.variables === item.id
+              }
+            />
+          )}
+          contentContainerStyle={{
+            padding: 20,
+            paddingTop: 12,
+            paddingBottom: 100,
+          }}
+          showsVerticalScrollIndicator={false}
+          initialNumToRender={10}
+          maxToRenderPerBatch={5}
+          windowSize={5}
+          removeClippedSubviews={true}
+          ListEmptyComponent={
+            <View className="items-center justify-center py-16">
+              <Search size={40} color="#cbd5e1" strokeWidth={1.5} />
+              <Text className="text-slate-400 text-base mt-3 text-center">
+                Tidak ada unit ditemukan{"\n"}untuk pencarian &quot;{search}
+                &quot;
+              </Text>
+            </View>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
