@@ -1,4 +1,9 @@
 import {
+  SoldMotorItem,
+  StatCard,
+} from "@/src/components/report/ReportCards";
+import {
+  useBestSelling,
   useDailySellingReport,
   useWeeklySellingReport,
 } from "@/src/hooks/useAnalytics";
@@ -9,6 +14,8 @@ import {
 } from "@/src/services/analyticsServices";
 import { DisplayData } from "@/src/types/report";
 import { formatRupiah } from "@/src/utils/formatRupiah";
+import { useFocusEffect } from "@react-navigation/native";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import {
   ArrowLeft,
@@ -16,148 +23,37 @@ import {
   Bike,
   Download,
   Plus,
-  TrendingDown,
-  TrendingUp,
   Wallet,
 } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   ScrollView,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-type StatCardProps = {
-  icon: React.ComponentType<{
-    size: number;
-    color: string;
-    strokeWidth: number;
-  }>;
-  iconColor: string;
-  title: string;
-  value: string;
-  trend?: string;
-  isPositive?: boolean;
-};
-
-function StatCard({
-  icon: Icon,
-  iconColor,
-  title,
-  value,
-  trend,
-  isPositive = true,
-}: StatCardProps) {
-  return (
-    <View
-      className="flex-1 bg-white rounded-2xl p-4"
-      style={{
-        elevation: 2,
-        shadowColor: "#000",
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 2 },
-      }}
-    >
-      <View className="flex-row items-center gap-2 mb-3">
-        <View
-          className="w-8 h-8 rounded-xl items-center justify-center"
-          style={{ backgroundColor: `${iconColor}18` }}
-        >
-          <Icon size={16} color={iconColor} strokeWidth={2} />
-        </View>
-        <Text className="text-slate-400 text-xs flex-1" numberOfLines={1}>
-          {title}
-        </Text>
-      </View>
-
-      <Text
-        className="text-slate-900 text-xl font-bold mb-2"
-        numberOfLines={1}
-        adjustsFontSizeToFit
-      >
-        {value}
-      </Text>
-
-      {trend && (
-        <View
-          className={`flex-row items-center gap-1 self-start px-2 py-0.5 rounded-full ${
-            isPositive ? "bg-emerald-50" : "bg-red-50"
-          }`}
-        >
-          {isPositive ? (
-            <TrendingUp size={11} color="#10b981" strokeWidth={2.5} />
-          ) : (
-            <TrendingDown size={11} color="#ef4444" strokeWidth={2.5} />
-          )}
-          <Text
-            className={`text-xs font-bold ${
-              isPositive ? "text-emerald-600" : "text-red-500"
-            }`}
-          >
-            {trend}
-          </Text>
-        </View>
-      )}
-    </View>
-  );
-}
-
-function SoldMotorItem({
-  name,
-  value,
-  rank,
-  maxValue,
-}: {
-  name: string;
-  value: number;
-  rank: number;
-  maxValue: number;
-}) {
-  const percentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
-
-  return (
-    <View className="mb-3">
-      <View className="flex-row justify-between items-center mb-1">
-        <View className="flex-row items-center gap-2 flex-1">
-          <Text className="text-slate-400 text-sm w-4">{rank}</Text>
-          <Text
-            className="text-slate-800 font-semibold text-base flex-1"
-            numberOfLines={1}
-          >
-            {name}
-          </Text>
-        </View>
-        <Text className="text-slate-900 font-bold text-sm ml-2">
-          {formatRupiah(value)}
-        </Text>
-      </View>
-      <View
-        className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden ml-6"
-        style={{ width: "94%" }}
-      >
-        <View
-          className={`h-1.5 rounded-full ${rank === 1 ? "bg-amber-400" : "bg-otokas-primary"}`}
-          style={{ width: `${percentage}%` }}
-        />
-      </View>
-    </View>
-  );
-}
-
 export default function LaporanScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"harian" | "mingguan" | "bulanan">(
     "bulanan",
   );
+  const [bestLimit, setBestLimit] = useState("5");
   const today = new Date();
   const dateParam = formatDateParam(today);
   const monthParam = formatMonthParam(today);
 
-  // 3. Fetching data — hanya fetch tab yang sedang aktif
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard", "stats"] });
+    }, [queryClient]),
+  );
+
   const { data: motors, isLoading: motorsLoading } = useMotors();
   const { data: stats, isLoading: statsLoading } =
     useDashboardStats(monthParam);
@@ -166,12 +62,16 @@ export default function LaporanScreen() {
   );
   const { data: weeklyReport, isLoading: weeklyLoading } =
     useWeeklySellingReport(activeTab === "mingguan" ? dateParam : "");
+  const { data: bestSelling, isLoading: bestSellingLoading } = useBestSelling(
+    Number(bestLimit) || 5,
+  );
 
   const isLoading =
     motorsLoading ||
     statsLoading ||
     (activeTab === "harian" && dailyLoading) ||
-    (activeTab === "mingguan" && weeklyLoading);
+    (activeTab === "mingguan" && weeklyLoading) ||
+    bestSellingLoading;
   const hasNoMotors = !motorsLoading && (motors ?? []).length === 0;
 
   let currentDisplay: DisplayData = {
@@ -201,7 +101,6 @@ export default function LaporanScreen() {
       motors: entries.flatMap((e) => e.motors ?? []),
     };
   } else {
-    // Bulanan
     currentDisplay = {
       revenue: stats?.currentMonthRevenue ?? 0,
       sold: stats?.sold ?? 0,
@@ -226,7 +125,6 @@ export default function LaporanScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
-      {/* ── HEADER ── */}
       <View className="bg-otokas-primary px-6 pt-4 pb-5 rounded-b-[24px]">
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center">
@@ -257,7 +155,6 @@ export default function LaporanScreen() {
           paddingBottom: 100,
         }}
       >
-        {/* ── CAPSULE TAB FILTER ── */}
         <View className="bg-slate-100 p-1 rounded-full flex-row items-center mt-2 mb-6">
           {(["harian", "mingguan", "bulanan"] as const).map((tab) => {
             const isActive = activeTab === tab;
@@ -303,7 +200,6 @@ export default function LaporanScreen() {
             </Text>
           </View>
         ) : hasNoMotors ? (
-          /* ── EMPTY STATE ── */
           <View className="items-center justify-center px-4 py-8">
             <View
               className="bg-white rounded-3xl p-10 items-center w-full"
@@ -345,7 +241,6 @@ export default function LaporanScreen() {
           </View>
         ) : (
           <>
-            {/* ── STATS CARDS DINAMIS ── */}
             <View className="flex-row gap-3 mb-3">
               <StatCard
                 icon={Wallet}
@@ -375,7 +270,6 @@ export default function LaporanScreen() {
               />
             </View>
 
-            {/* ── DAFTAR MOTOR TERJUAL DINAMIS ── */}
             <View
               className="bg-white rounded-2xl p-5 mb-5"
               style={{
@@ -402,6 +296,47 @@ export default function LaporanScreen() {
               ) : (
                 <Text className="text-slate-400 text-sm text-center py-4">
                   Belum ada motor terjual pada periode ini.
+                </Text>
+              )}
+            </View>
+
+            <View
+              className="bg-white rounded-2xl p-5 mb-5"
+              style={{
+                elevation: 2,
+                shadowColor: "#000",
+                shadowOpacity: 0.06,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 2 },
+              }}
+            >
+              <Text className="text-slate-800 font-bold text-base mb-3">
+                Best Selling
+              </Text>
+              <TextInput
+                value={bestLimit}
+                onChangeText={setBestLimit}
+                keyboardType="numeric"
+                placeholder="Limit"
+                className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-3"
+              />
+              {(bestSelling ?? []).length > 0 ? (
+                (bestSelling ?? []).map((entry, idx) => (
+                  <View
+                    key={`${entry.brand}-${entry.name}-${idx}`}
+                    className="py-3 border-b border-slate-100"
+                  >
+                    <Text className="font-semibold text-slate-800">
+                      {entry.brand} {entry.name}
+                    </Text>
+                    <Text className="text-slate-500 text-sm">
+                      {entry.totalSold} terjual
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <Text className="text-slate-400 text-sm text-center py-4">
+                  Belum ada data best selling.
                 </Text>
               )}
             </View>

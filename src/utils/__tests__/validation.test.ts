@@ -1,4 +1,8 @@
-import { EMAIL_REGEX } from "../validation";
+import {
+  EMAIL_REGEX,
+  isStrongPassword,
+  isValidHttpUrl,
+} from "../validation";
 
 describe("EMAIL_REGEX", () => {
   const validEmails = [
@@ -14,10 +18,10 @@ describe("EMAIL_REGEX", () => {
     "plaintext",
     "@domain.com",
     "user@",
-    "user @domain.com",        // space in local part
-    "user@ domain.com",        // space in domain
-    "user@domain",             // missing TLD dot
-    "user@.com",               // missing domain name
+    "user @domain.com",
+    "user@ domain.com",
+    "user@domain",
+    "user@.com",
   ];
 
   it.each(validEmails)("accepts valid email: %s", (email) => {
@@ -28,8 +32,28 @@ describe("EMAIL_REGEX", () => {
     expect(EMAIL_REGEX.test(email)).toBe(false);
   });
 
-  it("is case-insensitive by character class (not flag)", () => {
-    // The regex itself doesn't have the /i flag, but accepts uppercase letters
+  it("accepts uppercase letters", () => {
     expect(EMAIL_REGEX.test("User@Domain.COM")).toBe(true);
+  });
+});
+
+describe("isStrongPassword", () => {
+  it("requires eight characters, an uppercase letter, and a number", () => {
+    expect(isStrongPassword("Password1")).toBe(true);
+    expect(isStrongPassword("password1")).toBe(false);
+    expect(isStrongPassword("Password")).toBe(false);
+    expect(isStrongPassword("Pass1")).toBe(false);
+  });
+});
+
+describe("isValidHttpUrl", () => {
+  it("accepts HTTP and HTTPS URLs", () => {
+    expect(isValidHttpUrl("https://example.com/image.jpg")).toBe(true);
+    expect(isValidHttpUrl(" HTTP://example.com ")).toBe(true);
+  });
+
+  it("rejects empty and non-HTTP values", () => {
+    expect(isValidHttpUrl()).toBe(false);
+    expect(isValidHttpUrl("file:///image.jpg")).toBe(false);
   });
 });

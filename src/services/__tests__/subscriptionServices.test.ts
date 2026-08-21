@@ -25,8 +25,14 @@ describe("subscriptionServices", () => {
       };
       (api.post as jest.Mock).mockResolvedValue({ data: { data: co } });
       (extractData as jest.Mock).mockReturnValue(co);
-      const r = await checkoutSubscription();
-      expect(api.post).toHaveBeenCalledWith("/subscription/checkout");
+      const r = await checkoutSubscription({
+        paymentMethod: "qris",
+        channelCode: "qris",
+      });
+      expect(api.post).toHaveBeenCalledWith("/subscription/checkout", {
+        paymentMethod: "qris",
+        channelCode: "qris",
+      });
       expect(r.invoice_url).toBe("https://checkout.xendit.co/web/inv1");
       expect(r.external_id).toBe("TENANT_SUB_x");
     });

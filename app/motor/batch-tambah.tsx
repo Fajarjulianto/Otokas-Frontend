@@ -1,26 +1,27 @@
+import { bulkInsertMotors, MotorInsert } from "@/src/services/motorServices";
 import { formatRupiahInput, parseRupiah } from "@/src/utils/formatRupiah";
 import { useRouter } from "expo-router";
 import {
-    ArrowLeft,
-    CheckCircle2,
-    ChevronDown,
-    ChevronUp,
-    ImagePlus,
-    Receipt,
-    Trash2,
+  ArrowLeft,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  ImagePlus,
+  Receipt,
+  Trash2,
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    LayoutAnimation,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  LayoutAnimation,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -33,14 +34,13 @@ interface ScannedMotor {
   plateNumber: string;
   buyingPrice: string;
   sellingPrice: string;
+  isIncomplete: boolean;
   isExpanded: boolean; // Untuk fitur accordion
 }
 
 export default function BatchAddMotorPage() {
   const router = useRouter();
 
-  //TES MOCK DATA SEMENTARA
-  //AKAN DIGANTI DENGAN ZUSTAND
   const initialScannedData: ScannedMotor[] = [
     {
       id: "1",
@@ -50,6 +50,7 @@ export default function BatchAddMotorPage() {
       plateNumber: "B 1234 ABC",
       buyingPrice: "",
       sellingPrice: "",
+      isIncomplete: true,
       isExpanded: true,
     },
     {
@@ -60,6 +61,7 @@ export default function BatchAddMotorPage() {
       plateNumber: "D 5678 DEF",
       buyingPrice: "",
       sellingPrice: "",
+      isIncomplete: true,
       isExpanded: false,
     },
     {
@@ -70,6 +72,7 @@ export default function BatchAddMotorPage() {
       plateNumber: "F 9012 GHI",
       buyingPrice: "",
       sellingPrice: "",
+      isIncomplete: true,
       isExpanded: false,
     },
   ];
@@ -77,9 +80,9 @@ export default function BatchAddMotorPage() {
   const [motors, setMotors] = useState<ScannedMotor[]>(initialScannedData);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  //VALIDASI PENGISISAN HARGA MOTOR
   const isValid =
-    motors.length > 0 && motors.every((m) => parseRupiah(m.buyingPrice) > 0);
+    motors.length > 0 &&
+    motors.every((m) => parseRupiah(m.buyingPrice) > 0 && m.brand && m.name);
 
   // Fungsi untuk mengubah data spesifik di dalam array motor
   const handleUpdateMotor = (
@@ -94,7 +97,6 @@ export default function BatchAddMotorPage() {
     );
   };
 
-  // Fungsi Buka/Tutup Accordion
   const toggleExpand = (id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     handleUpdateMotor(
@@ -104,7 +106,6 @@ export default function BatchAddMotorPage() {
     );
   };
 
-  // Fungsi Hapus salah satu hasil scan (jika user salah foto stnk)
   const removeMotor = (id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setMotors((prev) => prev.filter((m) => m.id !== id));
@@ -115,10 +116,16 @@ export default function BatchAddMotorPage() {
     setIsSubmitting(true);
 
     try {
-      // tes consume API
-
-      // Simulasi loading 2 detik
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const payload: MotorInsert[] = motors.map((motor) => ({
+        brand: motor.brand,
+        name: motor.name.trim(),
+        year: Number(motor.year) || undefined,
+        plateNumber: motor.plateNumber.trim() || undefined,
+        buyingPrice: parseRupiah(motor.buyingPrice),
+        sellingPrice: parseRupiah(motor.sellingPrice) || undefined,
+        isIncomplete: !motor.brand || !motor.name || parseRupiah(motor.buyingPrice) <= 0,
+      }));
+      await bulkInsertMotors(payload);
 
       Alert.alert(
         "Sukses!",
@@ -170,7 +177,6 @@ export default function BatchAddMotorPage() {
           </View>
         </View>
 
-        {/* ── DAFTAR MOTOR (ACCORDION FORM) ── */}
         <ScrollView
           contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
@@ -187,7 +193,6 @@ export default function BatchAddMotorPage() {
                 shadowRadius: 5,
               }}
             >
-              {/* Card Header (Bisa diklik untuk buka/tutup) */}
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => toggleExpand(motor.id)}
@@ -232,11 +237,9 @@ export default function BatchAddMotorPage() {
                 </View>
               </TouchableOpacity>
 
-              {/* Card Body (Form Isian) */}
               {motor.isExpanded && (
                 <View className="p-4 pt-2 border-t border-slate-100 bg-white">
                   <View className="flex-row gap-3 mb-4">
-                    {/* Input Harga Beli */}
                     <View className="flex-1">
                       <Text className="text-slate-600 text-xs font-bold mb-1.5 uppercase tracking-wider">
                         Harga Beli <Text className="text-red-500">*</Text>
@@ -287,6 +290,25 @@ export default function BatchAddMotorPage() {
                     </View>
                   </View>
 
+                  <View className="flex-row items-center gap-2 mb-4">
+                    <TouchableOpacity
+                      onPress={() =>
+                        handleUpdateMotor(
+                          motor.id,
+                          "isIncomplete",
+                          !motor.isIncomplete,
+                        )
+                      }
+                      className={`px-3 py-2 rounded-xl border ${motor.isIncomplete ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}
+                    >
+                      <Text
+                        className={`text-xs font-bold ${motor.isIncomplete ? "text-amber-700" : "text-emerald-700"}`}
+                      >
+                        {motor.isIncomplete ? "Belum Lengkap" : "Lengkap"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
                   {/* Tombol Aksi Bawah Card */}
                   <View className="flex-row items-center justify-between mt-2 pt-3 border-t border-dashed border-slate-200">
                     <TouchableOpacity className="flex-row items-center gap-1.5 px-2 py-1">
@@ -319,7 +341,6 @@ export default function BatchAddMotorPage() {
           )}
         </ScrollView>
 
-        {/* ── TOMBOL SIMPAN GLOBAL (STICKY) ── */}
         <View className="absolute bottom-0 left-0 right-0 bg-white px-5 pt-4 pb-6 border-t border-slate-200 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.1)]">
           <View className="flex-row justify-between mb-3 px-1">
             <Text className="text-slate-500 font-medium text-sm">

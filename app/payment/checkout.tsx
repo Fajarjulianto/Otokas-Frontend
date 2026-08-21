@@ -19,7 +19,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// ─── Dummy Order ───
 const ORDER_INFO = {
   paket: "Paket Juragan",
   periode: "1 Bulan",
@@ -100,27 +99,31 @@ export default function CheckoutScreen() {
   async function handleBayar() {
     if (!selected) return;
 
-    checkoutMutation.mutate(undefined, {
-      onSuccess: (data) => {
-        // README §6: open the Xendit invoice_url, then poll subscription status.
-        router.replace({
-          pathname: "/payment/result",
-          params: {
-            status: "pending",
-            orderId: data.external_id,
-            amount: String(ORDER_INFO.amount),
-            paymentType: selectedMethod?.name ?? "Xendit",
-            redirectUrl: data.invoice_url,
-          },
-        });
+    checkoutMutation.mutate(
+      {
+        paymentMethod: selectedMethod?.id,
+        channelCode: selectedMethod?.id,
       },
-      onError: (error) => {
-        Alert.alert(
-          "Pembayaran Gagal",
-          error.message || "Gagal memproses pembayaran. Coba lagi.",
-        );
+      {
+        onSuccess: async (data) => {
+          router.push({
+            pathname: "/payment/webview" as never,
+            params: {
+              invoiceUrl: data.invoice_url,
+              orderId: data.external_id,
+              amount: String(ORDER_INFO.amount),
+              paymentType: selectedMethod?.name ?? "Xendit",
+            },
+          } as never);
+        },
+        onError: (error) => {
+          Alert.alert(
+            "Pembayaran Gagal",
+            error.message || "Gagal memproses pembayaran. Coba lagi.",
+          );
+        },
       },
-    });
+    );
   }
 
   // ── Loading processing ──
@@ -259,7 +262,6 @@ export default function CheckoutScreen() {
         ))}
       </ScrollView>
 
-      {/* TOMBOL BAYAR sticky */}
       <View
         className="absolute bottom-0 left-0 right-0 bg-white px-5 pt-4 pb-12 border-t border-slate-100"
         style={{ elevation: 12 }}

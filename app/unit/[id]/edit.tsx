@@ -1,3 +1,9 @@
+import { ScreenHeader } from "@/src/components/layout/ScreenHeader";
+import {
+  MotorBrandPicker,
+  MotorField,
+  MotorPrimaryFields,
+} from "@/src/components/motor/MotorForm";
 import {
   useDeleteMotor,
   useMotorById,
@@ -5,19 +11,16 @@ import {
 } from "@/src/hooks/useMotors";
 import type { Motor } from "@/src/types/motor";
 import { formatRupiahInput, parseRupiah } from "@/src/utils/formatRupiah";
-// import { useLocalSearchParams, useRouter } from "expo-router";
 import { useGlobalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Trash2 } from "lucide-react-native";
+import { Trash2 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -26,22 +29,10 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
-const BRANDS = ["Honda", "Yamaha", "Suzuki", "Kawasaki", "TVS", "Lainnya"];
-
 export default function EditMotorPage() {
   const router = useRouter();
   const { id } = useGlobalSearchParams<{ id: string }>();
-  console.log("=== DEBUG EDIT MOTOR ===");
-  console.log("1. ID yang ditangkap:", id);
-  console.log("2. Tipe data ID:", typeof id);
-
-  const { data: motor, isLoading: motorsLoading, error } = useMotorById(id);
-  console.log("3. Error dari Backend:", error?.message || "Tidak ada error");
-  console.log(
-    "4. Data Motor yang didapat:",
-    motor ? "Berhasil didapat" : "KOSONG",
-  );
-  console.log("========================");
+  const { data: motor, isLoading: motorsLoading } = useMotorById(id);
   const updateMotorMutation = useUpdateMotor();
   const deleteMotorMutation = useDeleteMotor();
   const insets = useSafeAreaInsets();
@@ -71,7 +62,7 @@ export default function EditMotorPage() {
       );
       setFrameNumber(motor.frameNumber ?? "");
       setEngineNumber(motor.engineNumber ?? "");
-      setPlateNumber(motor.plateNumber ?? ""); // switching to type plateNumber
+      setPlateNumber(motor.plateNumber ?? "");
       setColor(motor.color ?? "");
       setKilometer(motor.kilometer != null ? String(motor.kilometer) : "");
       setLoaded(true);
@@ -154,7 +145,6 @@ export default function EditMotorPage() {
     );
   }
 
-  // ── Loading / Not Found state ──
   if (motorsLoading || (!motor && !motorsLoading)) {
     return (
       <SafeAreaView
@@ -196,39 +186,30 @@ export default function EditMotorPage() {
         className="flex-1"
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {/* HEADER */}
-        <View className="bg-otokas-primary px-5 pt-5 pb-5 flex-row items-center gap-5">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-9 h-9 bg-white/10 rounded-xl items-center justify-center"
-          >
-            <ArrowLeft size={20} color="white" />
-          </TouchableOpacity>
-          <View className="flex-1">
-            <Text className="text-white text-lg font-bold">Edit Motor</Text>
-            <Text className="text-blue-200 text-sm">
-              {currentMotor.brand} {currentMotor.name}
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={handleDelete}
-            disabled={deleteMotorMutation.isPending}
-            className="w-9 h-9 bg-white/10 rounded-xl items-center justify-center"
-          >
-            {deleteMotorMutation.isPending ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <Trash2 size={18} color="#fca5a5" />
-            )}
-          </TouchableOpacity>
-        </View>
+        <ScreenHeader
+          title="Edit Motor"
+          subtitle={`${currentMotor.brand} ${currentMotor.name}`}
+          onBack={() => router.back()}
+          rightAction={
+            <TouchableOpacity
+              onPress={handleDelete}
+              disabled={deleteMotorMutation.isPending}
+              className="w-9 h-9 bg-white/10 rounded-xl items-center justify-center"
+            >
+              {deleteMotorMutation.isPending ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Trash2 size={18} color="#fca5a5" />
+              )}
+            </TouchableOpacity>
+          }
+        />
 
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ padding: 20, paddingBottom: 140 }}
         >
-          {/* Error */}
           {updateMotorMutation.isError && (
             <View className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-5">
               <Text className="text-red-600 text-sm font-medium">
@@ -238,7 +219,6 @@ export default function EditMotorPage() {
             </View>
           )}
 
-          {/* ── SECTION: Data Utama ── */}
           <Text className="text-slate-500 text-xs font-semibold uppercase tracking-widest mb-3">
             Data Utama
           </Text>
@@ -252,113 +232,23 @@ export default function EditMotorPage() {
               shadowOffset: { width: 0, height: 1 },
             }}
           >
-            {/* Merek — Dropdown */}
-            <View>
-              <Text className="text-slate-700 font-semibold text-sm mb-2">
-                Merek
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowBrandPicker(true)}
-                disabled={updateMotorMutation.isPending}
-                className="border border-slate-200 rounded-xl px-4 py-3.5 flex-row items-center justify-between bg-white"
-              >
-                <Text
-                  className={
-                    brand
-                      ? "text-slate-900 text-base"
-                      : "text-slate-400 text-base"
-                  }
-                >
-                  {brand || "Pilih merek"}
-                </Text>
-                <Text className="text-slate-400 text-base">⌄</Text>
-              </TouchableOpacity>
-            </View>
+            <MotorPrimaryFields
+              brand={brand}
+              name={name}
+              year={year}
+              plateNumber={plateNumber}
+              buyingPrice={buyingPrice}
+              sellingPrice={sellingPrice}
+              disabled={updateMotorMutation.isPending}
+              onOpenBrandPicker={() => setShowBrandPicker(true)}
+              onNameChange={setName}
+              onYearChange={setYear}
+              onPlateNumberChange={setPlateNumber}
+              onBuyingPriceChange={setBuyingPrice}
+              onSellingPriceChange={setSellingPrice}
+              compactPricePlaceholder
+            />
 
-            {/* Model / Tipe */}
-            <View>
-              <Text className="text-slate-700 font-semibold text-sm mb-2">
-                Model / Tipe
-              </Text>
-              <TextInput
-                placeholder="Contoh: Vario 125 CBS"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-                placeholderTextColor="#94a3b8"
-                editable={!updateMotorMutation.isPending}
-                className="border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-base bg-white"
-              />
-            </View>
-
-            {/* Tahun + Plat Nomor */}
-            <View className="flex-row gap-4">
-              <View className="flex-1">
-                <Text className="text-slate-700 font-semibold text-sm mb-2">
-                  Tahun
-                </Text>
-                <TextInput
-                  placeholder="2023"
-                  value={year}
-                  onChangeText={(t) =>
-                    setYear(t.replace(/\D/g, "").slice(0, 4))
-                  }
-                  keyboardType="numeric"
-                  maxLength={4}
-                  placeholderTextColor="#94a3b8"
-                  editable={!updateMotorMutation.isPending}
-                  className="border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-base bg-white"
-                />
-              </View>
-              <View className="flex-1">
-                <Text className="text-slate-700 font-semibold text-sm mb-2">
-                  Plat Nomor
-                </Text>
-                <TextInput
-                  placeholder="B 1234 ABC"
-                  value={plateNumber}
-                  onChangeText={(t) => setPlateNumber(t.toUpperCase())}
-                  autoCapitalize="characters"
-                  placeholderTextColor="#94a3b8"
-                  editable={!updateMotorMutation.isPending}
-                  className="border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-base bg-white"
-                />
-              </View>
-            </View>
-
-            {/* Harga Beli + Harga Jual */}
-            <View className="flex-row gap-4">
-              <View className="flex-1">
-                <Text className="text-slate-700 font-semibold text-sm mb-2">
-                  Harga Beli (Rp)
-                </Text>
-                <TextInput
-                  placeholder="14000000"
-                  value={buyingPrice}
-                  onChangeText={(t) => setBuyingPrice(formatRupiahInput(t))}
-                  keyboardType="numeric"
-                  placeholderTextColor="#94a3b8"
-                  editable={!updateMotorMutation.isPending}
-                  className="border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-base bg-white"
-                />
-              </View>
-              <View className="flex-1">
-                <Text className="text-slate-700 font-semibold text-sm mb-2">
-                  Harga Jual (Rp)
-                </Text>
-                <TextInput
-                  placeholder="16500000"
-                  value={sellingPrice}
-                  onChangeText={(t) => setSellingPrice(formatRupiahInput(t))}
-                  keyboardType="numeric"
-                  placeholderTextColor="#94a3b8"
-                  editable={!updateMotorMutation.isPending}
-                  className="border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-base bg-white"
-                />
-              </View>
-            </View>
-
-            {/* Estimasi Margin */}
             {margin !== null && profit !== null && (
               <View className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex-row items-center justify-between">
                 <Text className="text-emerald-700 font-semibold text-sm">
@@ -378,7 +268,6 @@ export default function EditMotorPage() {
             )}
           </View>
 
-          {/* ── SECTION: Data Dokumen ── */}
           <Text className="text-slate-500 text-xs font-semibold uppercase tracking-widest mb-3">
             Data Dokumen
           </Text>
@@ -392,71 +281,50 @@ export default function EditMotorPage() {
               shadowOffset: { width: 0, height: 1 },
             }}
           >
-            {/* Nomor Rangka + Nomor Mesin */}
             <View className="flex-row gap-4">
-              <View className="flex-1">
-                <Text className="text-slate-700 font-semibold text-sm mb-2">
-                  Nomor Rangka
-                </Text>
-                <TextInput
-                  placeholder="MH1JFM118GK12"
-                  value={frameNumber}
-                  onChangeText={(t) => setFrameNumber(t.toUpperCase())}
-                  autoCapitalize="characters"
-                  placeholderTextColor="#94a3b8"
-                  editable={!updateMotorMutation.isPending}
-                  className="border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-base bg-white"
-                />
-              </View>
-              <View className="flex-1">
-                <Text className="text-slate-700 font-semibold text-sm mb-2">
-                  Nomor Mesin
-                </Text>
-                <TextInput
-                  placeholder="JFM1E1123456"
-                  value={engineNumber}
-                  onChangeText={(t) => setEngineNumber(t.toUpperCase())}
-                  autoCapitalize="characters"
-                  placeholderTextColor="#94a3b8"
-                  editable={!updateMotorMutation.isPending}
-                  className="border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-base bg-white"
-                />
-              </View>
+              <MotorField
+                label="Nomor Rangka"
+                placeholder="MH1JFM118GK12"
+                value={frameNumber}
+                onChangeText={(value) =>
+                  setFrameNumber(value.toUpperCase())
+                }
+                autoCapitalize="characters"
+                editable={!updateMotorMutation.isPending}
+              />
+              <MotorField
+                label="Nomor Mesin"
+                placeholder="JFM1E1123456"
+                value={engineNumber}
+                onChangeText={(value) =>
+                  setEngineNumber(value.toUpperCase())
+                }
+                autoCapitalize="characters"
+                editable={!updateMotorMutation.isPending}
+              />
             </View>
 
-            {/* Warna + STNK s/d */}
             <View className="flex-row gap-4">
-              <View className="flex-1">
-                <Text className="text-slate-700 font-semibold text-sm mb-2">
-                  Warna
-                </Text>
-                <TextInput
-                  placeholder="Hitam"
-                  value={color}
-                  onChangeText={setColor}
-                  autoCapitalize="words"
-                  placeholderTextColor="#94a3b8"
-                  editable={!updateMotorMutation.isPending}
-                  className="border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-base bg-white"
-                />
-              </View>
-              <View className="flex-1">
-                <Text className="text-slate-700 font-semibold text-sm mb-2">
-                  Kilometer
-                </Text>
-                <TextInput
-                  placeholder="24500"
-                  value={kilometer}
-                  onChangeText={(t) => setKilometer(t.replace(/\D/g, ""))}
-                  keyboardType="numeric"
-                  placeholderTextColor="#94a3b8"
-                  editable={!updateMotorMutation.isPending}
-                  className="border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-base bg-white"
-                />
-              </View>
+              <MotorField
+                label="Warna"
+                placeholder="Hitam"
+                value={color}
+                onChangeText={setColor}
+                autoCapitalize="words"
+                editable={!updateMotorMutation.isPending}
+              />
+              <MotorField
+                label="Kilometer"
+                placeholder="24500"
+                value={kilometer}
+                onChangeText={(value) =>
+                  setKilometer(value.replace(/\D/g, ""))
+                }
+                keyboardType="numeric"
+                editable={!updateMotorMutation.isPending}
+              />
             </View>
 
-            {/* Info kelengkapan data */}
             {(frameNumber.trim() === "" || engineNumber.trim() === "") && (
               <View className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
                 <Text className="text-amber-700 text-xs leading-5">
@@ -467,45 +335,13 @@ export default function EditMotorPage() {
           </View>
         </ScrollView>
 
-        {/* Brand Picker Modal */}
-        <Modal
+        <MotorBrandPicker
           visible={showBrandPicker}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowBrandPicker(false)}
-        >
-          <TouchableOpacity
-            className="flex-1 bg-black/40"
-            activeOpacity={1}
-            onPress={() => setShowBrandPicker(false)}
-          />
-          <View className="bg-white rounded-t-3xl px-5 pt-5 pb-10">
-            <Text className="text-slate-900 font-bold text-lg mb-4">
-              Pilih Merek
-            </Text>
-            {BRANDS.map((b) => (
-              <TouchableOpacity
-                key={b}
-                onPress={() => {
-                  setBrand(b);
-                  setShowBrandPicker(false);
-                }}
-                className="py-4 border-b border-slate-100 flex-row items-center justify-between"
-              >
-                <Text
-                  className={`text-base ${brand === b ? "text-otokas-primary font-semibold" : "text-slate-700"}`}
-                >
-                  {b}
-                </Text>
-                {brand === b && (
-                  <Text className="text-otokas-primary font-bold">✓</Text>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Modal>
+          value={brand}
+          onChange={setBrand}
+          onClose={() => setShowBrandPicker(false)}
+        />
 
-        {/* TOMBOL SIMPAN sticky */}
         <View
           className="absolute bottom-0 left-0 right-0 bg-white px-5 pt-4 pb-5 border-t border-slate-100"
           style={{ elevation: 12, paddingBottom: Math.max(insets.bottom, 16) }}

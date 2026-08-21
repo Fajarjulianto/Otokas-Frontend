@@ -6,6 +6,7 @@ export type Tenant = {
   subdomain: string;
   fullDomain: string;
   logoUrl?: string | null;
+  bannerUrl?: string | null;
   templateKey?: string;
   primaryColor?: string | null;
   whatsappNumber?: string | null;
@@ -27,9 +28,11 @@ export type MotorDisplayConfig = {
 };
 
 export type TenantLocation = {
-  city: string;
-  address: string;
-  mapsUrl: string;
+  city?: string | null;
+  address?: string | null;
+  mapsUrl?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 export type LandingContent = {
@@ -54,6 +57,19 @@ export type UpdateLandingConfigPayload = Partial<LandingContent>;
 
 export type UpdateBrandingPayload = {
   primaryColor?: string | null;
+};
+
+export type BannerUploadUrlResponse = {
+  uploadUrl: string;
+  filePath: string;
+};
+
+export type ConfirmTenantBannerPayload = {
+  storageKey: string;
+  url: string;
+  width?: number;
+  height?: number;
+  size?: number;
 };
 
 // Public tenant listing types (README §8)

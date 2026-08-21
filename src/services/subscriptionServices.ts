@@ -20,6 +20,11 @@ export type CheckoutResponse = {
   status: string;
 };
 
+export type CheckoutSubscriptionPayload = {
+  paymentMethod?: string;
+  channelCode?: string;
+};
+
 function decorateStatus(
   raw: Partial<SubscriptionStatus> | null | undefined,
 ): SubscriptionStatus {
@@ -38,8 +43,10 @@ function decorateStatus(
 }
 
 // ── Start checkout
-export async function checkoutSubscription(): Promise<CheckoutResponse> {
-  const response = await api.post("/subscription/checkout");
+export async function checkoutSubscription(
+  payload: CheckoutSubscriptionPayload = {},
+): Promise<CheckoutResponse> {
+  const response = await api.post("/subscription/checkout", payload);
   return extractData<CheckoutResponse>(response);
 }
 
@@ -53,9 +60,4 @@ export async function fetchSubscriptionStatus(): Promise<SubscriptionStatus> {
   }
 
   return decorateStatus(data);
-}
-
-export async function checkoutNotificationSubscription(): Promise<CheckoutResponse> {
-  const response = await api.post("/subscription/notification");
-  return extractData<CheckoutResponse>(response);
 }

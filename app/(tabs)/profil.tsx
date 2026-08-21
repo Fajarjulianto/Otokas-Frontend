@@ -76,7 +76,7 @@ export default function ProfileScreen() {
   const displayName = profile?.dealerName || user?.dealerName || "Dealer";
   const displayEmail = profile?.email || user?.email || "";
   const displayPhone = profile?.phoneNumber || "";
-  const displayAddress = profile?.address || "";
+  const displayAddress = profile?.address || user?.address || "";
   const initials = displayName
     .split(" ")
     .map((w: string) => w[0])
@@ -86,13 +86,6 @@ export default function ProfileScreen() {
 
   const isPremium = subscription?.isPremium ?? user?.isPremium ?? false;
   const planName = subscription?.plan || (isPremium ? "Juragan" : "Gratis");
-
-  const handleFeatureNotReady = (featureName: string) => {
-    Alert.alert(
-      "Fitur Segera Hadir",
-      `Fitur ${featureName} akan aktif setelah masa trial selesai.`,
-    );
-  };
 
   const handleLogout = () => {
     Alert.alert("Keluar Akun", "Apakah Bos yakin ingin keluar dari Otokas?", [
@@ -223,20 +216,20 @@ export default function ProfileScreen() {
           <MenuItem
             icon={User}
             title="Edit Profil"
-            subtitle="Ubah nama dan info kontak"
+            subtitle="Ubah nama, kontak, dan alamat showroom"
             onPress={() => router.push("/edit-profile")}
           />
           <MenuItem
             icon={Home}
             title="Data Showroom"
             subtitle="Ubah nama dan alamat showroom"
-            onPress={() => handleFeatureNotReady("Data Showroom")}
+            onPress={() => router.push("/edit-profile")}
           />
           <MenuItem
             icon={Lock}
             title="Keamanan"
             subtitle="Ubah password akun"
-            onPress={() => handleFeatureNotReady("Ubah Password")}
+            onPress={() => router.push("/edit-profile")}
           />
         </View>
 

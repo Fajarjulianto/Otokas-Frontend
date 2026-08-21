@@ -2,20 +2,15 @@ import { api, extractData } from "@/src/lib/api";
 import { getRefreshToken } from "@/src/lib/secureToken";
 import { getDeviceId } from "@/src/utils/getDeviceID";
 
-export type AuthResponse = {
-  access_token: string;
-  user: {
-    id: string;
-    email: string;
-    dealerName: string;
-    fullName?: string;
-    isPremium: boolean;
-  };
-};
-
 export type TokenResponse = {
   access_token: string;
   refresh_token?: string;
+};
+
+export type AuthMeResponse = {
+  userId?: string;
+  id?: string;
+  email: string;
 };
 
 export type RegisterResponse = {
@@ -31,6 +26,7 @@ export type RegisterPayload = {
   email: string;
   password: string;
   dealerName: string;
+  phoneNumber?: string;
 };
 
 export type LoginPayload = {
@@ -81,15 +77,20 @@ export async function refreshToken(): Promise<TokenResponse> {
 }
 
 // ── Get Current User ──
-export async function fetchMe(token?: string): Promise<AuthResponse["user"]> {
+export async function fetchMe(
+  token?: string,
+): Promise<{ id?: string; email: string }> {
   const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
 
   const response = await api.get("/auth/me", config);
 
-  const userData = extractData<AuthResponse["user"]>(response);
+  const userData = extractData<AuthMeResponse>(response);
   if (!userData || !userData.email) {
-    throw new Error("Format response profil dari server tidak sesuai.");
+    throw new Error("Format response auth/me dari server tidak sesuai.");
   }
 
-  return userData;
+  return {
+    id: userData.id ?? userData.userId,
+    email: userData.email,
+  };
 }

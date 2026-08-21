@@ -7,18 +7,27 @@ import {
   saveToken,
 } from "@/src/lib/secureToken";
 import { getDeviceId } from "@/src/utils/getDeviceID";
-import axios from "axios";
 import type { AxiosResponse } from "axios";
+import axios from "axios";
+
+function normalizeBaseUrl(rawUrl?: string): string | undefined {
+  if (!rawUrl) return undefined;
+
+  const trimmedUrl = rawUrl.replace(/\/+$/, "");
+  return trimmedUrl.endsWith("/api/v1")
+    ? trimmedUrl
+    : `${trimmedUrl}/api/v1`;
+}
 
 export const api = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL,
+  baseURL: normalizeBaseUrl(process.env.EXPO_PUBLIC_API_URL),
   headers: {
     "Content-Type": "application/json",
   },
   timeout: 15000,
+  withCredentials: true,
 });
 
-// ── Request Interceptor: inject token from SecureStore ──
 api.interceptors.request.use(async (config) => {
   if (!config.headers.Authorization) {
     const token = await getToken();
@@ -29,7 +38,6 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-// ── Response Interceptor: 401 auto-refresh + error formatting ──
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -40,7 +48,6 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        // README §1: POST /auth/refresh with refresh_token + deviceId.
         const deviceId = await getDeviceId();
         const refresh_token = await getRefreshToken();
         const { data } = await api.post("/auth/refresh", {
@@ -53,7 +60,8 @@ api.interceptors.response.use(
           data?.token ??
           data?.accessToken ??
           data?.data?.token;
-        const newRefreshToken = data?.refresh_token ?? data?.data?.refresh_token;
+        const newRefreshToken =
+          data?.refresh_token ?? data?.data?.refresh_token;
 
         if (newToken) {
           await saveToken(newToken);

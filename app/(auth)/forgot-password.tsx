@@ -1,15 +1,18 @@
-import { requestPasswordReset } from "@/src/services/userServices";
-import { EMAIL_REGEX } from "@/src/utils/validation";
-import { useRouter } from "expo-router";
-import { ArrowLeft, Bike, Mail } from "lucide-react-native";
-import React, { useState } from "react";
 import {
-  ActivityIndicator,
+  AuthError,
+  AuthField,
+  AuthSubmitButton,
+} from "@/src/components/auth/AuthForm";
+import { requestPasswordReset, resetPassword } from "@/src/services/userServices";
+import { EMAIL_REGEX, isStrongPassword } from "@/src/utils/validation";
+import { useRouter } from "expo-router";
+import { ArrowLeft, Bike, ShieldCheck } from "lucide-react-native";
+import React, { useMemo, useState } from "react";
+import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -17,20 +20,47 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
+  const [step, setStep] = useState<"request" | "reset">("request");
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   const isEmailValid = EMAIL_REGEX.test(email.trim());
+  const isPasswordValid = useMemo(
+    () => isStrongPassword(newPassword),
+    [newPassword],
+  );
+  const canReset =
+    otp.trim().length >= 4 &&
+    isPasswordValid &&
+    confirmPassword === newPassword &&
+    !isLoading;
 
-  async function handleSubmit() {
+  async function handleRequestOtp() {
     if (!isEmailValid || isLoading) return;
     setIsLoading(true);
     setError(null);
     try {
       await requestPasswordReset(email.trim());
-      setIsSuccess(true);
+      setStep("reset");
+    } catch (err: any) {
+      setError(err?.message ?? "Terjadi kesalahan. Silakan coba lagi.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleResetPassword() {
+    if (!canReset) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      await resetPassword(email.trim(), otp.trim(), newPassword);
+      setSuccess(true);
     } catch (err: any) {
       setError(err?.message ?? "Terjadi kesalahan. Silakan coba lagi.");
     } finally {
@@ -60,9 +90,10 @@ export default function ForgotPasswordPage() {
           </View>
 
           <View className="flex-1 bg-white rounded-t-[40px] px-8 pt-10 pb-12 shadow-2xl">
-            {/* Back button */}
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={() =>
+                step === "reset" && !success ? setStep("request") : router.back()
+              }
               className="flex-row items-center gap-2 mb-6"
             >
               <ArrowLeft size={18} color="#475569" />
@@ -70,23 +101,21 @@ export default function ForgotPasswordPage() {
             </TouchableOpacity>
 
             <Text className="text-2xl font-bold text-slate-900">
-              Lupa Password?
+              {success ? "Password Berhasil Diubah" : "Lupa Password?"}
             </Text>
             <Text className="text-slate-400 mt-1 mb-8">
-              Masukkan email Anda dan kami akan mengirimkan link reset password.
+              {success
+                ? "Silakan login kembali menggunakan password baru Anda."
+                : step === "request"
+                  ? "Masukkan email Anda untuk menerima OTP reset password."
+                  : "Masukkan OTP, password baru, dan konfirmasi password Anda."}
             </Text>
 
-            {/* Success state */}
-            {isSuccess ? (
+            {success ? (
               <View className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-5 items-center">
-                <Mail size={32} color="#10b981" className="mb-3" />
+                <ShieldCheck size={32} color="#10b981" className="mb-3" />
                 <Text className="text-emerald-700 font-bold text-base text-center mb-1">
-                  Email Terkirim!
-                </Text>
-                <Text className="text-emerald-600 text-sm text-center">
-                  Cek inbox Anda di{" "}
-                  <Text className="font-semibold">{email}</Text> dan ikuti
-                  instruksi untuk reset password.
+                  Reset Berhasil
                 </Text>
                 <TouchableOpacity
                   onPress={() => router.replace("/(auth)/login")}
@@ -99,69 +128,82 @@ export default function ForgotPasswordPage() {
               </View>
             ) : (
               <>
-                {/* Error */}
-                {error && (
-                  <View className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-5">
-                    <Text className="text-red-600 text-sm font-medium">
-                      {error}
-                    </Text>
-                  </View>
-                )}
+                <AuthError message={error} />
 
-                {/* Email input */}
-                <View className="mb-8">
-                  <Text className="text-slate-700 font-semibold mb-2">
-                    Email
-                  </Text>
-                  <View className="relative">
-                    <TextInput
+                {step === "request" ? (
+                  <>
+                    <AuthField
+                      label="Email"
                       placeholder="dealer@email.com"
                       value={email}
                       onChangeText={(text) => {
                         setEmail(text);
                         setError(null);
                       }}
-                      className={`w-full bg-slate-50 border p-4 rounded-xl text-slate-900 ${
+                      error={
                         email.length > 0 && !isEmailValid
-                          ? "border-red-300"
-                          : "border-slate-200"
-                      }`}
+                          ? "Format email tidak valid"
+                          : undefined
+                      }
                       keyboardType="email-address"
                       autoCapitalize="none"
                       autoCorrect={false}
                       editable={!isLoading}
+                      containerClassName="mb-8"
                     />
-                    <View className="absolute right-4 top-4">
-                      <Mail size={20} color="#94a3b8" />
-                    </View>
-                  </View>
-                  {email.length > 0 && !isEmailValid && (
-                    <Text className="text-red-500 text-xs mt-1.5 ml-1">
-                      Format email tidak valid
-                    </Text>
-                  )}
-                </View>
-
-                {/* Submit Button */}
-                <TouchableOpacity
-                  onPress={handleSubmit}
-                  disabled={!isEmailValid || isLoading}
-                  className={`w-full p-4 rounded-2xl shadow-lg active:opacity-90 ${
-                    isEmailValid && !isLoading ? "bg-[#f59e0b]" : "bg-slate-200"
-                  }`}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <Text
-                      className={`text-center font-bold text-lg ${
-                        isEmailValid ? "text-white" : "text-slate-400"
-                      }`}
-                    >
-                      Kirim Link Reset
-                    </Text>
-                  )}
-                </TouchableOpacity>
+                    <AuthSubmitButton
+                      label="Kirim OTP"
+                      onPress={handleRequestOtp}
+                      disabled={!isEmailValid}
+                      loading={isLoading}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <AuthField
+                      label="OTP"
+                      value={otp}
+                      onChangeText={setOtp}
+                      placeholder="Masukkan OTP"
+                      keyboardType="number-pad"
+                      editable={!isLoading}
+                    />
+                    <AuthField
+                      label="Password Baru"
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                      placeholder="Password baru"
+                      secureTextEntry
+                      editable={!isLoading}
+                      error={
+                        newPassword.length > 0 && !isPasswordValid
+                          ? "Minimal 8 karakter, ada huruf besar dan angka"
+                          : undefined
+                      }
+                    />
+                    <AuthField
+                      label="Konfirmasi Password"
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      placeholder="Ulangi password baru"
+                      secureTextEntry
+                      editable={!isLoading}
+                      error={
+                        confirmPassword.length > 0 &&
+                        confirmPassword !== newPassword
+                          ? "Password tidak sama"
+                          : undefined
+                      }
+                      containerClassName="mb-8"
+                    />
+                    <AuthSubmitButton
+                      label="Reset Password"
+                      onPress={handleResetPassword}
+                      disabled={!canReset}
+                      loading={isLoading}
+                    />
+                  </>
+                )}
               </>
             )}
           </View>

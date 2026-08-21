@@ -1,3 +1,4 @@
+import { useSubscriptionStatus } from "@/src/hooks/useSubscription";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   AlertCircle,
@@ -8,8 +9,8 @@ import {
   Home,
   RefreshCw,
 } from "lucide-react-native";
-import React from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type PaymentStatus = "success" | "pending" | "failed";
@@ -73,10 +74,14 @@ function DetailRow({
 
 export default function PaymentResultScreen() {
   const router = useRouter();
+  const { data: subscription, isLoading, refetch } = useSubscriptionStatus();
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
 
   // Expo Router: /payment/result?status=success&orderId=ORD-xxx&amount=200000
   const {
-    status = "success",
+    status = "pending",
     orderId = "-",
     amount = "-",
     paymentType = "-",
@@ -87,10 +92,39 @@ export default function PaymentResultScreen() {
     paymentType: string;
   }>();
 
-  const config = STATUS_CONFIG[status as PaymentStatus] ?? STATUS_CONFIG.failed;
+  useEffect(() => {
+    if (subscription?.isPremium) {
+      setTimedOut(false);
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      return;
+    }
+
+    pollRef.current = setInterval(() => {
+      void refetch();
+    }, 4000);
+    timeoutRef.current = setTimeout(() => {
+      setTimedOut(true);
+      if (pollRef.current) clearInterval(pollRef.current);
+    }, 90000);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [refetch, subscription?.isPremium]);
+
+  const backendStatus: PaymentStatus =
+    subscription?.isPremium ? "success" : "pending";
+  const effectiveStatus =
+    backendStatus === "success" ? "success" : (status as PaymentStatus);
+  const config =
+    STATUS_CONFIG[effectiveStatus] ?? STATUS_CONFIG.pending;
   const Icon = config.icon;
   const formattedAmount =
     amount !== "-" ? `Rp ${Number(amount).toLocaleString("id-ID")}` : "-";
+  const showProcessing =
+    isLoading || (!subscription?.isPremium && effectiveStatus === "pending");
 
   return (
     <SafeAreaView className="flex-1 bg-slate-100" edges={["top", "bottom"]}>
@@ -98,6 +132,15 @@ export default function PaymentResultScreen() {
         contentContainerStyle={{ flexGrow: 1, padding: 24 }}
         showsVerticalScrollIndicator={false}
       >
+        {showProcessing && (
+          <View className="flex-row items-center justify-center gap-3 mb-4 bg-white rounded-2xl px-4 py-3 border border-slate-100">
+            <ActivityIndicator size="small" color="#1e3a8a" />
+            <Text className="text-slate-600 text-sm font-medium">
+              Menunggu konfirmasi pembayaran dari backend...
+            </Text>
+          </View>
+        )}
+
         <View
           className="bg-white rounded-3xl p-6 mt-8"
           style={{
@@ -146,7 +189,7 @@ export default function PaymentResultScreen() {
             </Text>
           </View>
 
-          {status === "success" && (
+          {effectiveStatus === "success" && (
             <>
               <TouchableOpacity
                 onPress={() => router.replace("/(tabs)")}
@@ -169,7 +212,7 @@ export default function PaymentResultScreen() {
             </>
           )}
 
-          {status === "pending" && (
+          {effectiveStatus === "pending" && (
             <>
               <TouchableOpacity
                 onPress={() => router.replace("/(tabs)")}
@@ -186,10 +229,24 @@ export default function PaymentResultScreen() {
                   pembayaran dikonfirmasi.
                 </Text>
               </View>
+              {timedOut && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setTimedOut(false);
+                    void refetch();
+                  }}
+                  className="mt-3 w-full bg-white border border-slate-200 py-4 rounded-2xl flex-row items-center justify-center gap-2"
+                >
+                  <RefreshCw size={18} color="#334155" strokeWidth={2.5} />
+                  <Text className="text-slate-700 font-bold text-base">
+                    Muat Ulang Status
+                  </Text>
+                </TouchableOpacity>
+              )}
             </>
           )}
 
-          {status === "failed" && (
+          {effectiveStatus === "failed" && (
             <>
               <TouchableOpacity
                 onPress={() => router.back()}
@@ -214,7 +271,7 @@ export default function PaymentResultScreen() {
         </View>
 
         {/* Info bantuan */}
-        {status === "failed" && (
+        {effectiveStatus === "failed" && (
           <Text className="text-slate-400 text-xs text-center mt-5 px-4 leading-5">
             Butuh bantuan? Hubungi kami di{" "}
             <Text className="text-otokas-primary font-semibold">

@@ -1,11 +1,15 @@
-import { useInsertMotor } from "@/src/hooks/useMotors";
+import { ScreenHeader } from "@/src/components/layout/ScreenHeader";
+import {
+  MotorBrandPicker,
+  MotorPrimaryFields,
+} from "@/src/components/motor/MotorForm";
+import { useInsertMotor, useUploadMotorImages } from "@/src/hooks/useMotors";
 import { useSubscriptionStatus } from "@/src/hooks/useSubscription";
 import { MotorInsert } from "@/src/services/motorServices";
-import { formatRupiahInput, parseRupiah } from "@/src/utils/formatRupiah";
+import { parseRupiah } from "@/src/utils/formatRupiah";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import {
-  ArrowLeft,
   ChevronRight,
   ImagePlus,
   Lock,
@@ -18,27 +22,21 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const BRANDS = ["Honda", "Yamaha", "Suzuki", "Kawasaki", "TVS", "Lainnya"];
-
 export default function QuickAddMotorPage() {
   const router = useRouter();
   const insertMotorMutation = useInsertMotor();
-
-  // ── CEK STATUS PREMIUM ──
+  const uploadMotorImagesMutation = useUploadMotorImages();
   const { data: subscription } = useSubscriptionStatus();
   const isPremium = subscription?.isPremium ?? false;
 
-  // ── STATE FORM ──
   const [brand, setBrand] = useState("");
   const [name, setName] = useState("");
   const [year, setYear] = useState("");
@@ -47,11 +45,12 @@ export default function QuickAddMotorPage() {
   const [sellingPrice, setSellingPrice] = useState("");
   const [showBrandPicker, setShowBrandPicker] = useState(false);
 
-  // ── STATE FOTO ──
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const isValid = brand !== "" && name.trim() !== "" && buyingPrice !== "";
   const buying = parseRupiah(buyingPrice);
   const selling = parseRupiah(sellingPrice);
+  const isSubmitting =
+    insertMotorMutation.isPending || uploadMotorImagesMutation.isPending;
 
   function resetForm() {
     setBrand("");
@@ -60,30 +59,44 @@ export default function QuickAddMotorPage() {
     setPlateNumber("");
     setBuyingPrice("");
     setSellingPrice("");
-    setPhotos([]); // Reset foto juga
+    setPhotos([]);
   }
 
-  // ── FUNGSI PILIH FOTO ──
   const pickImages = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        "Izin Ditolak",
-        "Maaf, kami butuh izin akses galeri untuk mengunggah foto!",
-      );
-      return;
-    }
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Izin Ditolak",
+          "Maaf, kami butuh izin akses galeri untuk mengunggah foto!",
+        );
+        return;
+      }
 
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      quality: 0.8,
-      selectionLimit: 5,
-    });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        selectionLimit: 5 - photos.length,
+      });
 
-    if (!result.canceled) {
-      const selectedUris = result.assets.map((asset) => asset.uri);
-      setPhotos((prev) => [...prev, ...selectedUris].slice(0, 5));
+      if (!result.canceled) {
+        setPhotos((previousPhotos) => {
+          const selectedPhotos = result.assets.filter(
+            (asset) =>
+              !previousPhotos.some(
+                (photo) =>
+                  (asset.assetId && photo.assetId === asset.assetId) ||
+                  photo.uri === asset.uri,
+              ),
+          );
+          return [...previousPhotos, ...selectedPhotos].slice(0, 5);
+        });
+      }
+    } catch (error) {
+      console.error("Pick motor images failed:", error);
+      Alert.alert("Gagal", "Foto tidak dapat dipilih. Coba lagi.");
     }
   };
 
@@ -91,7 +104,7 @@ export default function QuickAddMotorPage() {
     setPhotos((prev) => prev.filter((_, index) => index !== indexToRemove));
   };
 
-  function handleSimpan() {
+  async function handleSimpan() {
     if (!isValid) return;
 
     const yearNum = Number(year);
@@ -104,28 +117,43 @@ export default function QuickAddMotorPage() {
       ...(yearNum > 0 && { year: yearNum }),
       ...(selling > 0 && { sellingPrice: selling }),
       ...(plateNumber.trim() && { plateNumber: plateNumber.trim() }),
-      ///VARIABEL PHOTOS
     };
 
-    insertMotorMutation.mutate(motorData, {
-      onSuccess: () => {
-        Alert.alert("Berhasil", "Motor sudah ditambahkan.", [
-          {
-            text: "OK",
-            onPress: () => {
-              resetForm();
-              router.replace("/(tabs)/stok");
-            },
+    try {
+      const createdMotor = await insertMotorMutation.mutateAsync(motorData);
+
+      let successMessage = "Motor sudah ditambahkan.";
+      if (isPremium && photos.length > 0) {
+        try {
+          await uploadMotorImagesMutation.mutateAsync({
+            motorId: createdMotor.id,
+            files: photos,
+          });
+          successMessage = "Motor dan foto berhasil ditambahkan.";
+        } catch (error) {
+          successMessage =
+            "Motor berhasil ditambahkan, tetapi upload foto gagal. Anda bisa mencoba lagi dari halaman detail motor.";
+          console.error("Upload motor images failed:", error);
+        }
+      }
+
+      Alert.alert("Berhasil", successMessage, [
+        {
+          text: "OK",
+          onPress: () => {
+            resetForm();
+            router.replace("/(tabs)/stok");
           },
-        ]);
-      },
-      onError: (error) => {
-        Alert.alert(
-          "Gagal",
-          error.message || "Gagal menambahkan motor. Coba lagi.",
-        );
-      },
-    });
+        },
+      ]);
+    } catch (error) {
+      Alert.alert(
+        "Gagal",
+        error instanceof Error
+          ? error.message
+          : "Gagal menambahkan motor. Coba lagi.",
+      );
+    }
   }
 
   return (
@@ -134,28 +162,17 @@ export default function QuickAddMotorPage() {
         className="flex-1"
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {/* HEADER */}
-        <View className="bg-otokas-primary px-5 pt-5 pb-5 flex-row items-center gap-5">
-          <TouchableOpacity
-            onPress={() => router.replace("/(tabs)")}
-            className="w-9 h-9 bg-white/10 rounded-xl items-center justify-center"
-          >
-            <ArrowLeft size={20} color="white" />
-          </TouchableOpacity>
-          <View className="flex-1">
-            <Text className="text-white text-lg font-bold">
-              Tambah Unit Motor
-            </Text>
-            <Text className="text-blue-200 text-sm">Isi data unit baru</Text>
-          </View>
-        </View>
+        <ScreenHeader
+          title="Tambah Unit Motor"
+          subtitle="Isi data unit baru"
+          onBack={() => router.replace("/(tabs)")}
+        />
 
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ padding: 20, paddingBottom: 140 }}
         >
-          {/* ── TOMBOL SCAN STNK/BPKB ── */}
           <TouchableOpacity
             onPress={() => router.push("/unit/scan")}
             className="bg-otokas-primary rounded-2xl px-5 py-4 mb-5 flex-row items-center gap-4"
@@ -181,7 +198,6 @@ export default function QuickAddMotorPage() {
             <ChevronRight size={20} color="white" />
           </TouchableOpacity>
 
-          {/* Divider */}
           <View className="flex-row items-center gap-3 mb-6">
             <View className="flex-1 h-px bg-slate-200" />
             <Text className="text-slate-400 text-sm font-medium">
@@ -190,7 +206,6 @@ export default function QuickAddMotorPage() {
             <View className="flex-1 h-px bg-slate-200" />
           </View>
 
-          {/* Error Message */}
           {insertMotorMutation.isError && (
             <View className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-5">
               <Text className="text-red-600 text-sm font-medium">
@@ -200,7 +215,6 @@ export default function QuickAddMotorPage() {
             </View>
           )}
 
-          {/* Form Card */}
           <View
             className="bg-white rounded-2xl px-5 py-6 gap-5"
             style={{
@@ -211,109 +225,22 @@ export default function QuickAddMotorPage() {
               shadowOffset: { width: 0, height: 1 },
             }}
           >
-            <View>
-              <Text className="text-slate-700 font-semibold text-sm mb-2">
-                Merek
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowBrandPicker(true)}
-                disabled={insertMotorMutation.isPending}
-                className="border border-slate-200 rounded-xl px-4 py-3.5 flex-row items-center justify-between bg-white"
-              >
-                <Text
-                  className={
-                    brand
-                      ? "text-slate-900 text-base"
-                      : "text-slate-400 text-base"
-                  }
-                >
-                  {brand || "Pilih merek"}
-                </Text>
-                <Text className="text-slate-400 text-base">⌄</Text>
-              </TouchableOpacity>
-            </View>
+            <MotorPrimaryFields
+              brand={brand}
+              name={name}
+              year={year}
+              plateNumber={plateNumber}
+              buyingPrice={buyingPrice}
+              sellingPrice={sellingPrice}
+              disabled={isSubmitting}
+              onOpenBrandPicker={() => setShowBrandPicker(true)}
+              onNameChange={setName}
+              onYearChange={setYear}
+              onPlateNumberChange={setPlateNumber}
+              onBuyingPriceChange={setBuyingPrice}
+              onSellingPriceChange={setSellingPrice}
+            />
 
-            <View>
-              <Text className="text-slate-700 font-semibold text-sm mb-2">
-                Model / Tipe
-              </Text>
-              <TextInput
-                placeholder="Contoh: Vario 125 CBS"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-                placeholderTextColor="#94a3b8"
-                editable={!insertMotorMutation.isPending}
-                className="border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-base bg-white"
-              />
-            </View>
-
-            <View className="flex-row gap-4">
-              <View className="flex-1">
-                <Text className="text-slate-700 font-semibold text-sm mb-2">
-                  Tahun
-                </Text>
-                <TextInput
-                  placeholder="2023"
-                  value={year}
-                  onChangeText={(t) =>
-                    setYear(t.replace(/\D/g, "").slice(0, 4))
-                  }
-                  keyboardType="numeric"
-                  maxLength={4}
-                  placeholderTextColor="#94a3b8"
-                  editable={!insertMotorMutation.isPending}
-                  className="border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-base bg-white"
-                />
-              </View>
-              <View className="flex-1">
-                <Text className="text-slate-700 font-semibold text-sm mb-2">
-                  Plat Nomor
-                </Text>
-                <TextInput
-                  placeholder="B 1234 ABC"
-                  value={plateNumber}
-                  onChangeText={(t) => setPlateNumber(t.toUpperCase())}
-                  autoCapitalize="characters"
-                  placeholderTextColor="#94a3b8"
-                  editable={!insertMotorMutation.isPending}
-                  className="border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-base bg-white"
-                />
-              </View>
-            </View>
-
-            <View className="flex-row gap-4">
-              <View className="flex-1">
-                <Text className="text-slate-700 font-semibold text-sm mb-2">
-                  Harga Beli (Rp)
-                </Text>
-                <TextInput
-                  placeholder="14.000.000"
-                  value={buyingPrice}
-                  onChangeText={(t) => setBuyingPrice(formatRupiahInput(t))}
-                  keyboardType="numeric"
-                  placeholderTextColor="#94a3b8"
-                  editable={!insertMotorMutation.isPending}
-                  className="border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-base bg-white"
-                />
-              </View>
-              <View className="flex-1">
-                <Text className="text-slate-700 font-semibold text-sm mb-2">
-                  Harga Jual (Rp)
-                </Text>
-                <TextInput
-                  placeholder="16.500.000"
-                  value={sellingPrice}
-                  onChangeText={(t) => setSellingPrice(formatRupiahInput(t))}
-                  keyboardType="numeric"
-                  placeholderTextColor="#94a3b8"
-                  editable={!insertMotorMutation.isPending}
-                  className="border border-slate-200 rounded-xl px-4 py-3.5 text-slate-900 text-base bg-white"
-                />
-              </View>
-            </View>
-
-            {/* ── BAGIAN UPLOAD FOTO (PREMIUM ONLY) ── */}
             <View className="mt-2 border-t border-slate-100 pt-5">
               <Text className="text-slate-700 font-semibold mb-3">
                 Foto Motor
@@ -323,14 +250,15 @@ export default function QuickAddMotorPage() {
                 <View>
                   {photos.length > 0 && (
                     <View className="flex-row flex-wrap gap-3 mb-3">
-                      {photos.map((uri, index) => (
+                      {photos.map((photo, index) => (
                         <View
                           key={index}
                           className="relative w-20 h-20 rounded-xl overflow-hidden border border-slate-200"
                         >
                           <Image
-                            source={{ uri }}
+                            source={{ uri: photo.uri }}
                             className="w-full h-full object-cover"
+                            resizeMode="cover"
                           />
                           <TouchableOpacity
                             onPress={() => removePhoto(index)}
@@ -384,65 +312,27 @@ export default function QuickAddMotorPage() {
           </View>
         </ScrollView>
 
-        {/* Brand Picker Modal */}
-        <Modal
+        <MotorBrandPicker
           visible={showBrandPicker}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowBrandPicker(false)}
-        >
-          <TouchableOpacity
-            className="flex-1 bg-black/40"
-            activeOpacity={1}
-            onPress={() => setShowBrandPicker(false)}
-          />
-          <View className="bg-white rounded-t-3xl px-5 pt-5 pb-10">
-            <Text className="text-slate-900 font-bold text-lg mb-4">
-              Pilih Merek
-            </Text>
-            {BRANDS.map((b) => (
-              <TouchableOpacity
-                key={b}
-                onPress={() => {
-                  setBrand(b);
-                  setShowBrandPicker(false);
-                }}
-                className={`py-4 border-b border-slate-100 flex-row items-center justify-between ${
-                  brand === b ? "opacity-100" : "opacity-100"
-                }`}
-              >
-                <Text
-                  className={`text-base ${
-                    brand === b
-                      ? "text-otokas-primary font-semibold"
-                      : "text-slate-700"
-                  }`}
-                >
-                  {b}
-                </Text>
-                {brand === b && (
-                  <Text className="text-otokas-primary font-bold">✓</Text>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Modal>
+          value={brand}
+          onChange={setBrand}
+          onClose={() => setShowBrandPicker(false)}
+        />
 
-        {/* TOMBOL SIMPAN sticky */}
         <View
           className="absolute bottom-0 left-0 right-0 bg-white px-5 pt-4 pb-5 border-t border-slate-100"
           style={{ elevation: 12 }}
         >
           <TouchableOpacity
             onPress={handleSimpan}
-            disabled={!isValid || insertMotorMutation.isPending}
+            disabled={!isValid || isSubmitting}
             className={`w-full p-4 rounded-2xl flex-row items-center justify-center gap-2 ${
-              isValid && !insertMotorMutation.isPending
+              isValid && !isSubmitting
                 ? "bg-[#f59e0b]"
                 : "bg-slate-200"
             }`}
           >
-            {insertMotorMutation.isPending ? (
+            {isSubmitting ? (
               <ActivityIndicator color="white" />
             ) : (
               <Text

@@ -31,6 +31,7 @@ export default function ReviewScreen({
   isProcessing,
   processingLabel,
   errorMsg,
+  maxPhotos = 10,
 }: {
   photos: PhotoItem[];
   onBack: () => void;
@@ -40,6 +41,7 @@ export default function ReviewScreen({
   isProcessing: boolean;
   processingLabel: string;
   errorMsg: string | null;
+  maxPhotos?: number;
 }) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
@@ -86,7 +88,7 @@ export default function ReviewScreen({
           <Text className="text-blue-200 text-sm mt-0.5">
             {hasSelection
               ? `${selectedIndices.size} foto dipilih`
-              : "Pilih foto untuk diproses"}
+              : `Pilih foto untuk diproses (maks ${maxPhotos})`}
           </Text>
         </View>
         <TouchableOpacity

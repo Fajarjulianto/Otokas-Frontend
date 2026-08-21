@@ -140,23 +140,20 @@ describe("authServices", () => {
       const mockResponse = {
         data: {
           data: {
-            id: "u1",
+            userId: "u1",
             email: "me@test.com",
-            dealerName: "My Dealer",
-            isPremium: true,
           },
         },
       };
       (api.get as jest.Mock).mockResolvedValue(mockResponse);
       (extractData as jest.Mock).mockReturnValue({
-        id: "u1",
+        userId: "u1",
         email: "me@test.com",
-        dealerName: "My Dealer",
-        isPremium: true,
       });
 
       const result = await fetchMe();
       expect(api.get).toHaveBeenCalledWith("/auth/me", {});
+      expect(result.id).toBe("u1");
       expect(result.email).toBe("me@test.com");
     });
 
@@ -176,7 +173,7 @@ describe("authServices", () => {
       (extractData as jest.Mock).mockReturnValue({});
 
       await expect(fetchMe()).rejects.toThrow(
-        "Format response profil dari server tidak sesuai."
+        "Format response auth/me dari server tidak sesuai."
       );
     });
 
@@ -185,7 +182,7 @@ describe("authServices", () => {
       (extractData as jest.Mock).mockReturnValue(null);
 
       await expect(fetchMe()).rejects.toThrow(
-        "Format response profil dari server tidak sesuai."
+        "Format response auth/me dari server tidak sesuai."
       );
     });
   });

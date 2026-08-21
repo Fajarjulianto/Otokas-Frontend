@@ -16,6 +16,9 @@ export type AuthUser = {
   email: string;
   fullName?: string;
   dealerName?: string;
+  address?: string;
+  subdomain?: string;
+  fullDomain?: string;
   isPremium?: boolean;
   token?: string;
 };

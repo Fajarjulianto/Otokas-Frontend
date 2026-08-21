@@ -26,9 +26,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function ScreenConfirmation({
   ocr,
   onBack,
+  currentIndex,
+  totalCount,
+  onSuccessNext,
 }: {
   ocr: OcrResult;
   onBack: () => void;
+  currentIndex?: number;
+  totalCount?: number;
+  onSuccessNext?: () => void;
 }) {
   const router = useRouter();
   const insertMotorMutation = useInsertMotor();
@@ -70,15 +76,32 @@ export default function ScreenConfirmation({
     };
     insertMotorMutation.mutate(dataMotor, {
       onSuccess: () => {
-        Alert.alert("Berhasil", "Motor berhasil disimpan dari scan STNK.", [
-          {
-            text: "OK",
-            onPress: () => {
-              onBack();
-              router.replace("/(tabs)/stok");
+        if (onSuccessNext) {
+          Alert.alert(
+            "Berhasil", 
+            totalCount && currentIndex && currentIndex < totalCount
+              ? `Motor ${currentIndex} dari ${totalCount} berhasil disimpan. Lanjut ke motor berikutnya.`
+              : "Motor berhasil disimpan dari scan STNK.",
+            [
+              {
+                text: "OK",
+                onPress: () => {
+                  onSuccessNext();
+                },
+              },
+            ]
+          );
+        } else {
+          Alert.alert("Berhasil", "Motor berhasil disimpan dari scan STNK.", [
+            {
+              text: "OK",
+              onPress: () => {
+                onBack();
+                router.replace("/(tabs)/stok");
+              },
             },
-          },
-        ]);
+          ]);
+        }
       },
       onError: (error) => {
         Alert.alert(

@@ -1,5 +1,6 @@
 import { useAuthContext } from "@/src/context/authContext";
 import {
+  changePassword,
   fetchProfile,
   requestPasswordReset,
   resetPassword,
@@ -14,7 +15,7 @@ export const userKeys = {
 
 export function useProfile() {
   return useQuery({
-    queryKey: ["user", "profile"],
+    queryKey: userKeys.profile,
     queryFn: fetchProfile,
   });
 }
@@ -28,10 +29,17 @@ export function useUpdateProfile() {
       return await updateProfile(payload);
     },
     onSuccess: async (updatedData) => {
-      queryClient.invalidateQueries({ queryKey: ["user", "profile"] });
-      if (updatedData.dealerName) {
-        await updateUser({ dealerName: updatedData.dealerName });
-      }
+      queryClient.invalidateQueries({ queryKey: userKeys.profile });
+      await updateUser({
+        ...(updatedData.dealerName
+          ? { dealerName: updatedData.dealerName }
+          : {}),
+        ...(updatedData.address ? { address: updatedData.address } : {}),
+        ...(updatedData.subdomain ? { subdomain: updatedData.subdomain } : {}),
+        ...(updatedData.fullDomain
+          ? { fullDomain: updatedData.fullDomain }
+          : {}),
+      });
     },
   });
 }
@@ -52,5 +60,12 @@ export function useResetPassword() {
       otp: string;
       newPassword: string;
     }) => resetPassword(email, otp, newPassword),
+  });
+}
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: ({ newPassword }: { newPassword: string }) =>
+      changePassword(newPassword),
   });
 }

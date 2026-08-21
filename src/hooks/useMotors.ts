@@ -6,9 +6,13 @@ import {
   insertMotor,
   markAsSold,
   MotorInsert,
+  replaceMotorImages,
+  uploadMotorImages,
+  type LocalMotorImageFile,
   updateMotor,
 } from "@/src/services/motorServices";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { MotorImage } from "@/src/types/motor";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 export const motorKeys = {
   all: Object.freeze(["motors"] as const),
@@ -18,6 +22,21 @@ export const motorKeys = {
   stats: (month?: string) =>
     Object.freeze(["motors", "stats", month ?? "current"] as const),
 };
+
+function invalidateMotorQueries(
+  queryClient: QueryClient,
+  motorId?: string,
+) {
+  queryClient.invalidateQueries({ queryKey: motorKeys.all });
+  queryClient.invalidateQueries({ queryKey: ["motors", "detail"] });
+  queryClient.invalidateQueries({ queryKey: ["motors", "stats"] });
+  queryClient.invalidateQueries({ queryKey: ["dashboard", "stats"] });
+  queryClient.invalidateQueries({ queryKey: ["analytics"] });
+
+  if (motorId) {
+    queryClient.invalidateQueries({ queryKey: motorKeys.detail(motorId) });
+  }
+}
 
 export function useMotors() {
   return useQuery({
@@ -45,8 +64,7 @@ export function useInsertMotor() {
   return useMutation({
     mutationFn: (motor: MotorInsert) => insertMotor(motor),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: motorKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["motors", "stats"] });
+      invalidateMotorQueries(queryClient);
     },
   });
 }
@@ -62,8 +80,7 @@ export function useUpdateMotor() {
       updates: Partial<MotorInsert>;
     }) => updateMotor(id, updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: motorKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["motors", "stats"] });
+      invalidateMotorQueries(queryClient);
     },
   });
 }
@@ -73,8 +90,7 @@ export function useMarkAsSold() {
   return useMutation({
     mutationFn: (motorId: string) => markAsSold(motorId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: motorKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["motors", "stats"] });
+      invalidateMotorQueries(queryClient);
     },
   });
 }
@@ -84,8 +100,42 @@ export function useDeleteMotor() {
   return useMutation({
     mutationFn: (motorId: string) => deleteMotor(motorId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: motorKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["motors", "stats"] });
+      invalidateMotorQueries(queryClient);
+    },
+  });
+}
+
+type UploadMotorImagesVars = {
+  motorId: string;
+  files: LocalMotorImageFile[];
+  existingImages?: MotorImage[];
+};
+
+export function useUploadMotorImages() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ motorId, files, existingImages }: UploadMotorImagesVars) =>
+      uploadMotorImages(motorId, files, existingImages),
+    onSuccess: (_, variables) => {
+      invalidateMotorQueries(queryClient, variables.motorId);
+    },
+  });
+}
+
+type ReplaceMotorImagesVars = {
+  motorId: string;
+  images: MotorImage[];
+};
+
+export function useReplaceMotorImages() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ motorId, images }: ReplaceMotorImagesVars) =>
+      replaceMotorImages(motorId, images),
+    onSuccess: (_, variables) => {
+      invalidateMotorQueries(queryClient, variables.motorId);
     },
   });
 }

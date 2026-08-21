@@ -22,6 +22,7 @@ export function useDailySellingReport(date: string) {
     queryKey: analyticsKeys.dailySelling(date),
     queryFn: () => fetchDailySellingReport(date),
     enabled: !!date,
+    refetchOnMount: "always",
   });
 }
 
@@ -30,6 +31,7 @@ export function useWeeklySellingReport(date: string) {
     queryKey: analyticsKeys.weeklySelling(date),
     queryFn: () => fetchWeeklySellingReport(date),
     enabled: !!date,
+    refetchOnMount: "always",
   });
 }
 
@@ -38,6 +40,7 @@ export function useIncomingStockReport(date: string) {
     queryKey: analyticsKeys.incomingStock(date),
     queryFn: () => fetchIncomingStockReport(date),
     enabled: !!date,
+    refetchOnMount: "always",
   });
 }
 
@@ -45,5 +48,6 @@ export function useBestSelling(limit = 5) {
   return useQuery({
     queryKey: analyticsKeys.bestSelling(limit),
     queryFn: () => fetchBestSelling(limit),
+    refetchOnMount: "always",
   });
 }

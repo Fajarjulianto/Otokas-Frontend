@@ -25,7 +25,7 @@ import ScreenConfirmation from "@/src/components/scan/screenConfirmation";
 import Viewfinder from "@/src/components/scan/viewFinder";
 import { OcrResult, PhotoItem } from "@/src/types/scan";
 
-const MAX_PHOTOS = 20;
+const MAX_PHOTOS = 10;
 
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -33,7 +33,8 @@ export default function ScanScreen() {
   const [isReviewing, setIsReviewing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingLabel, setProcessingLabel] = useState("");
-  const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
+  const [ocrResults, setOcrResults] = useState<OcrResult[]>([]);
+  const [activeScanIndex, setActiveScanIndex] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [flashFeedback, setFlashFeedback] = useState(false);
 
@@ -117,18 +118,20 @@ export default function ScanScreen() {
         mimeType: "image/jpeg",
       }));
       const results = await scanWithUploadedPaths(scanPayload);
-      const result = Array.isArray(results)
-        ? results[0]
-        : (results as OcrResult | null);
-      const isNotSTNK =
-        !result || (!result.plateNumber && !result.frameNumber);
-      if (isNotSTNK) {
+      const resultsArray = Array.isArray(results) ? results : [results];
+      const validResults = resultsArray.filter(
+        (r): r is OcrResult =>
+          !!r && (!!r.plateNumber || !!r.frameNumber || !!r.brand),
+      );
+
+      if (validResults.length === 0) {
         throw new Error(
-          "Foto yang Anda jepret bukan STNK, silakan foto ulang STNK.",
+          "Foto yang Anda jepret bukan STNK yang valid, silakan foto ulang.",
         );
       }
 
-      setOcrResult(result);
+      setOcrResults(validResults);
+      setActiveScanIndex(0);
     } catch (e: any) {
       console.error("[ScanScreen] Gagal memproses OCR:", e);
       const msg = e?.message || "";
@@ -183,21 +186,40 @@ export default function ScanScreen() {
     }
   };
 
-  if (ocrResult)
+  if (ocrResults.length > 0) {
+    const currentResult = ocrResults[activeScanIndex];
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <ScreenConfirmation
-          ocr={ocrResult}
+          ocr={currentResult}
+          currentIndex={activeScanIndex + 1}
+          totalCount={ocrResults.length}
           onBack={() => {
-            setPhotos([]);
-            setIsReviewing(false);
-            setOcrResult(null);
-            setErrorMsg(null);
+            if (activeScanIndex > 0) {
+              setActiveScanIndex(activeScanIndex - 1);
+            } else {
+              setPhotos([]);
+              setIsReviewing(false);
+              setOcrResults([]);
+              setErrorMsg(null);
+            }
+          }}
+          onSuccessNext={() => {
+            if (activeScanIndex < ocrResults.length - 1) {
+              setActiveScanIndex(activeScanIndex + 1);
+            } else {
+              setPhotos([]);
+              setIsReviewing(false);
+              setOcrResults([]);
+              setErrorMsg(null);
+              router.replace("/(tabs)/stok");
+            }
           }}
         />
       </>
     );
+  }
 
   if (isReviewing && photos.length > 0)
     return (
@@ -215,6 +237,7 @@ export default function ScanScreen() {
           isProcessing={isProcessing}
           processingLabel={processingLabel}
           errorMsg={errorMsg}
+          maxPhotos={MAX_PHOTOS}
         />
       </>
     );

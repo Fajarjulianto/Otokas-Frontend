@@ -1,6 +1,7 @@
 // ── Mocks ──
 import { api, extractData } from "@/src/lib/api";
 import {
+  changePassword,
   fetchProfile,
   updateProfile,
   requestPasswordReset,
@@ -68,6 +69,7 @@ describe("userServices", () => {
         id: "u1",
         email: "user@test.com",
         dealerName: "New Name",
+        phoneNumber: "081234567890",
         isPremium: false,
         isEmailVerified: true,
       };
@@ -76,11 +78,35 @@ describe("userServices", () => {
       });
       (extractData as jest.Mock).mockReturnValue(updated);
 
-      const result = await updateProfile({ dealerName: "New Name" });
+      const result = await updateProfile({
+        dealerName: "New Name",
+        phoneNumber: "081234567890",
+        address: "Jl. Baru No. 1",
+      });
       expect(api.patch).toHaveBeenCalledWith("/users/profile", {
         dealerName: "New Name",
+        phoneNumber: "081234567890",
+        address: "Jl. Baru No. 1",
       });
       expect(result.dealerName).toBe("New Name");
+    });
+  });
+
+  // ── changePassword ──
+  describe("changePassword", () => {
+    it("sends POST /users/change-password with newPassword", async () => {
+      (api.post as jest.Mock).mockResolvedValue({
+        data: { data: { message: "Password updated" } },
+      });
+      (extractData as jest.Mock).mockReturnValue({
+        message: "Password updated",
+      });
+
+      const result = await changePassword("NewP@ss123");
+      expect(api.post).toHaveBeenCalledWith("/users/change-password", {
+        newPassword: "NewP@ss123",
+      });
+      expect(result).toEqual({ message: "Password updated" });
     });
   });
 

@@ -25,14 +25,14 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="unit/edit/[id]" />
-            <Stack.Screen name="unit/sold/[id]" />
+            <Stack.Screen name="unit/[id]/edit" />
             <Stack.Screen
               name="unit/scan"
               options={{ presentation: "modal" }}
             />
             <Stack.Screen name="paket" />
             <Stack.Screen name="payment/checkout" />
+            <Stack.Screen name="payment/webview" />
             <Stack.Screen name="payment/result" />
           </Stack>
         </AuthProvider>

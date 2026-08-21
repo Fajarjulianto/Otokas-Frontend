@@ -9,8 +9,10 @@ import {
   markAsSold,
   deleteMotor,
   fetchDashboardStats,
+  getMotorImageUploadUrls,
   getUploadUrls,
   uploadFileToGCS,
+  uploadMotorImages,
   scanWithUploadedPaths,
 } from "../motorServices";
 
@@ -223,6 +225,30 @@ describe("motorServices", () => {
     });
   });
 
+  describe("getMotorImageUploadUrls", () => {
+    it("sends POST /motors/:id/images/upload-urls and extracts uploads", async () => {
+      const uploads = [
+        {
+          uploadUrl:
+            "https://storage.googleapis.com/bucket/motor-images/front.jpg?sig=123",
+          filePath: "motor-images/front.jpg",
+        },
+      ];
+      (api.post as jest.Mock).mockResolvedValue({
+        data: { uploads },
+      });
+
+      const files = [{ fileName: "front.jpg", mimeType: "image/jpeg" }];
+      const result = await getMotorImageUploadUrls("motor-1", files);
+
+      expect(api.post).toHaveBeenCalledWith(
+        "/motors/motor-1/images/upload-urls",
+        { files },
+      );
+      expect(result).toEqual(uploads);
+    });
+  });
+
   // ── uploadFileToGCS ──
   describe("uploadFileToGCS", () => {
     it("fetches the file and PUTs blob to upload URL", async () => {
@@ -258,6 +284,64 @@ describe("motorServices", () => {
       await expect(
         uploadFileToGCS("https://gcs.example.com", "file:///x.jpg")
       ).rejects.toThrow("Gagal mengunggah foto ke server penyimpanan.");
+    });
+  });
+
+  describe("uploadMotorImages", () => {
+    it("uploads local files and replaces motor images with public URLs", async () => {
+      const blob = new Blob(["image-data"]);
+      mockFetch
+        .mockResolvedValueOnce({ blob: () => Promise.resolve(blob) })
+        .mockResolvedValueOnce({ ok: true });
+
+      (api.post as jest.Mock).mockResolvedValue({
+        data: {
+          uploads: [
+            {
+              uploadUrl:
+                "https://storage.googleapis.com/public-bucket/motor-images/front.jpg?X-Goog-Signature=abc",
+              filePath: "motor-images/front.jpg",
+            },
+          ],
+        },
+      });
+      (api.patch as jest.Mock).mockResolvedValue({
+        data: {
+          data: {
+            id: "motor-1",
+            motorImages: [
+              {
+                storageKey: "motor-images/front.jpg",
+                url: "https://storage.googleapis.com/public-bucket/motor-images/front.jpg",
+              },
+            ],
+          },
+        },
+      });
+
+      const result = await uploadMotorImages("motor-1", [
+        {
+          uri: "file:///front.jpg",
+          fileName: "front.jpg",
+          mimeType: "image/jpeg",
+          width: 1200,
+          height: 800,
+          fileSize: 12345,
+        },
+      ]);
+
+      expect(api.patch).toHaveBeenCalledWith("/motors/motor-1/images", {
+        images: [
+          {
+            storageKey: "motor-images/front.jpg",
+            url: "https://storage.googleapis.com/public-bucket/motor-images/front.jpg",
+            width: 1200,
+            height: 800,
+            size: 12345,
+          },
+        ],
+      });
+      expect(result.id).toBe("motor-1");
     });
   });
 

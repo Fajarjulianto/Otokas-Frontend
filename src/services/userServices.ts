@@ -5,7 +5,7 @@ import type { UpdateProfilePayload, UserProfile } from "@/src/types/user";
 export async function fetchProfile(): Promise<UserProfile> {
   const response = await api.get("/users/profile");
   const userData = extractData<UserProfile>(response);
-  if (!userData) {
+  if (!userData || !userData.dealerName || !userData.email) {
     throw new Error("Gagal mengambil data profil dari server.");
   }
 
@@ -20,12 +20,18 @@ export async function updateProfile(
   return extractData<UserProfile>(response);
 }
 
+export async function changePassword(
+  newPassword: string,
+): Promise<{ message?: string }> {
+  const response = await api.post("/users/change-password", { newPassword });
+  return extractData<{ message?: string }>(response);
+}
+
 // ── Request Password Reset ──
 export async function requestPasswordReset(email: string): Promise<void> {
   await api.post("/users/request-password-reset", { email });
 }
 
-// ── Reset Password (README §4: email + otp + newPassword) ──
 export async function resetPassword(
   email: string,
   otp: string,

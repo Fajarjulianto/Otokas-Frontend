@@ -1,5 +1,7 @@
 import { api, extractData } from "@/src/lib/api";
 import type {
+  BannerUploadUrlResponse,
+  ConfirmTenantBannerPayload,
   CreateTenantPayload,
   LandingConfigResponse,
   PublicTenantMotorsResponse,
@@ -32,6 +34,21 @@ export async function updateBranding(
   return extractData<Tenant>(response);
 }
 
+export async function getTenantBannerUploadUrl(payload: {
+  fileName: string;
+  mimeType: string;
+}): Promise<BannerUploadUrlResponse> {
+  const response = await api.post("/tenants/banner/upload-url", payload);
+  return extractData<BannerUploadUrlResponse>(response);
+}
+
+export async function confirmTenantBanner(
+  payload: ConfirmTenantBannerPayload,
+): Promise<Tenant> {
+  const response = await api.post("/tenants/banner/confirm", payload);
+  return extractData<Tenant>(response);
+}
+
 // ── Public: tenant profile
 export async function fetchPublicTenant(subdomain: string): Promise<Tenant> {
   const response = await api.get(`/public/tenants/${subdomain}`);
@@ -48,7 +65,6 @@ export async function fetchPublicLandingContent(
   return extractData<LandingConfigResponse>(response);
 }
 
-// ── Public: paginated motor listings
 export async function fetchPublicTenantMotors(
   subdomain: string,
   page = 1,
@@ -60,7 +76,6 @@ export async function fetchPublicTenantMotors(
   return extractData<PublicTenantMotorsResponse>(response);
 }
 
-// ── Public: search motor listings
 export async function searchPublicTenantMotors(
   subdomain: string,
   q: string,
