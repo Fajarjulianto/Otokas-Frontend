@@ -40,6 +40,8 @@ export type LandingContent = {
   location?: TenantLocation;
   businessHours?: { items: BusinessHourItem[] };
   motorDisplay?: MotorDisplayConfig;
+  subdomain?: string;
+  templateKey?: string;
 };
 
 export type LandingConfigResponse = {
@@ -53,7 +55,13 @@ export type CreateTenantPayload = {
   subdomain: string;
 };
 
-export type UpdateLandingConfigPayload = Partial<LandingContent>;
+export type UpdateLandingConfigPayload = {
+  templateKey?: string;
+  whatsappNumber?: string | null;
+  subdomain?: string;
+  location?: TenantLocation;
+  motorDisplay?: MotorDisplayConfig;
+};
 
 export type UpdateBrandingPayload = {
   primaryColor?: string | null;

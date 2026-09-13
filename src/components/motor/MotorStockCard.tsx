@@ -165,13 +165,14 @@ export const MotorStockCard = React.memo(function MotorStockCard({
               </>
             )}
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => router.push(`/unit/${item.id}/edit`)}
-            disabled={isSold}
-            className="w-11 h-11 rounded-xl border border-slate-200 bg-white items-center justify-center"
-          >
-            <Edit3 size={16} color="#475569" />
-          </TouchableOpacity>
+          {!isSold && (
+            <TouchableOpacity
+              onPress={() => router.push(`/unit/${item.id}/edit`)}
+              className="w-11 h-11 rounded-xl border border-slate-200 bg-white items-center justify-center"
+            >
+              <Edit3 size={16} color="#475569" />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             onPress={handleDelete}
             disabled={isDeleting || isSelling}

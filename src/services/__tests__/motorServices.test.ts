@@ -1,5 +1,8 @@
 // ── Mocks ──
 import { api } from "@/src/lib/api";
+import { fetch as expoFetch } from "expo/fetch";
+import { File } from "expo-file-system";
+import { prepareImageForUpload } from "@/src/utils/imageUpload";
 import {
   fetchMotors,
   fetchMotorById,
@@ -25,9 +28,38 @@ jest.mock("@/src/lib/api", () => ({
   },
 }));
 
-// Mock global fetch for uploadFileToGCS
-const mockFetch = jest.fn();
-global.fetch = mockFetch;
+jest.mock("expo-file-system", () => ({
+  File: jest.fn(),
+}));
+
+jest.mock("expo/fetch", () => ({
+  fetch: jest.fn(),
+}));
+
+jest.mock("@/src/utils/imageUpload", () => ({
+  prepareImageForUpload: jest.fn(
+    async (
+      file: {
+        uri: string;
+        fileName?: string | null;
+        width?: number;
+        height?: number;
+        fileSize?: number | null;
+      },
+      index: number,
+    ) => ({
+      uri: file.uri.replace(/\.[^./]+$/, ".webp"),
+      fileName: (file.fileName ?? `motor-image-${index}.jpg`).replace(
+        /\.[^./]+$/,
+        ".webp",
+      ),
+      mimeType: "image/webp",
+      width: file.width ?? 1600,
+      height: file.height ?? 900,
+      fileSize: file.fileSize ?? 1000,
+    }),
+  ),
+}));
 
 describe("motorServices", () => {
   afterEach(() => {
@@ -251,56 +283,84 @@ describe("motorServices", () => {
 
   // ── uploadFileToGCS ──
   describe("uploadFileToGCS", () => {
-    it("fetches the file and PUTs blob to upload URL", async () => {
-      const blob = new Blob(["image-data"]);
-      mockFetch
-        .mockResolvedValueOnce({ blob: () => Promise.resolve(blob) }) // fetch fileUri
-        .mockResolvedValueOnce({ ok: true }); // PUT to GCS
+    it("uploads the local file as binary content with PUT", async () => {
+      const localFile = {
+        exists: true,
+        size: 10,
+      };
+      (File as unknown as jest.Mock).mockImplementationOnce(() => localFile);
+      (expoFetch as jest.Mock).mockResolvedValueOnce({ ok: true });
 
       await uploadFileToGCS(
         "https://storage.example.com/upload",
         "file:///photo.jpg",
-        "image/jpeg"
+        "image/jpeg",
       );
 
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-      expect(mockFetch).toHaveBeenNthCalledWith(1, "file:///photo.jpg");
-      expect(mockFetch).toHaveBeenNthCalledWith(
-        2,
+      expect(File).toHaveBeenCalledWith("file:///photo.jpg");
+      expect(expoFetch).toHaveBeenCalledWith(
         "https://storage.example.com/upload",
-        expect.objectContaining({
+        {
           method: "PUT",
+          body: localFile,
           headers: { "Content-Type": "image/jpeg" },
-        })
+        },
       );
     });
 
     it("throws when GCS upload fails", async () => {
-      const blob = new Blob(["data"]);
-      mockFetch
-        .mockResolvedValueOnce({ blob: () => Promise.resolve(blob) })
-        .mockResolvedValueOnce({ ok: false });
+      (File as unknown as jest.Mock).mockImplementationOnce(() => ({
+        exists: true,
+        size: 10,
+      }));
+      (expoFetch as jest.Mock).mockResolvedValueOnce({ ok: false });
 
       await expect(
-        uploadFileToGCS("https://gcs.example.com", "file:///x.jpg")
+        uploadFileToGCS("https://gcs.example.com", "file:///x.jpg"),
       ).rejects.toThrow("Gagal mengunggah foto ke server penyimpanan.");
+    });
+
+    it("returns a clear message when the device cannot resolve GCS", async () => {
+      (File as unknown as jest.Mock).mockImplementationOnce(() => ({
+        exists: true,
+        size: 10,
+      }));
+      (expoFetch as jest.Mock).mockRejectedValueOnce(
+        new Error('Unable to resolve host "storage.googleapis.com"'),
+      );
+
+      await expect(
+        uploadFileToGCS("https://gcs.example.com", "file:///x.jpg"),
+      ).rejects.toThrow("Tidak dapat terhubung ke Google Storage");
+    });
+
+    it("throws when the local file cannot be read", async () => {
+      (File as unknown as jest.Mock).mockImplementationOnce(() => ({
+        exists: false,
+        size: 0,
+      }));
+
+      await expect(
+        uploadFileToGCS("https://gcs.example.com", "file:///missing.jpg"),
+      ).rejects.toThrow("Gagal membaca file foto dari perangkat.");
     });
   });
 
   describe("uploadMotorImages", () => {
     it("uploads local files and replaces motor images with public URLs", async () => {
-      const blob = new Blob(["image-data"]);
-      mockFetch
-        .mockResolvedValueOnce({ blob: () => Promise.resolve(blob) })
-        .mockResolvedValueOnce({ ok: true });
+      (File as unknown as jest.Mock).mockImplementationOnce(() => ({
+        exists: true,
+        size: 12345,
+      }));
+      (expoFetch as jest.Mock).mockResolvedValueOnce({ ok: true });
 
       (api.post as jest.Mock).mockResolvedValue({
         data: {
           uploads: [
             {
               uploadUrl:
-                "https://storage.googleapis.com/public-bucket/motor-images/front.jpg?X-Goog-Signature=abc",
-              filePath: "motor-images/front.jpg",
+                "https://storage.googleapis.com/public-bucket/motor-images/front.webp?X-Goog-Signature=abc",
+              filePath: "motor-images/front.webp",
             },
           ],
         },
@@ -311,8 +371,8 @@ describe("motorServices", () => {
             id: "motor-1",
             motorImages: [
               {
-                storageKey: "motor-images/front.jpg",
-                url: "https://storage.googleapis.com/public-bucket/motor-images/front.jpg",
+                storageKey: "motor-images/front.webp",
+                url: "https://storage.googleapis.com/public-bucket/motor-images/front.webp",
               },
             ],
           },
@@ -330,11 +390,28 @@ describe("motorServices", () => {
         },
       ]);
 
+      expect(prepareImageForUpload).toHaveBeenCalledWith(
+        expect.objectContaining({ uri: "file:///front.jpg" }),
+        expect.objectContaining({ compress: 0.8, maxWidth: 1600 }),
+      );
+      expect(api.post).toHaveBeenCalledWith(
+        "/motors/motor-1/images/upload-urls",
+        {
+          files: [{ fileName: "front.webp", mimeType: "image/webp" }],
+        },
+      );
+      expect(File).toHaveBeenCalledWith("file:///front.webp");
+      expect(expoFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: { "Content-Type": "image/webp" },
+        }),
+      );
       expect(api.patch).toHaveBeenCalledWith("/motors/motor-1/images", {
         images: [
           {
-            storageKey: "motor-images/front.jpg",
-            url: "https://storage.googleapis.com/public-bucket/motor-images/front.jpg",
+            storageKey: "motor-images/front.webp",
+            url: "https://storage.googleapis.com/public-bucket/motor-images/front.webp",
             width: 1200,
             height: 800,
             size: 12345,
@@ -348,15 +425,35 @@ describe("motorServices", () => {
   // ── scanWithUploadedPaths ──
   describe("scanWithUploadedPaths", () => {
     it("sends POST /motors/scan-batch with file paths", async () => {
-      const ocrResults = [{ nomor_polisi: "BE 1234" }];
+      const ocrResults = [
+        {
+          brand: "Honda",
+          name: "Beat",
+          plateNumber: "BE 1234",
+          year: "2021",
+          displacement: "110",
+        },
+      ];
       (api.post as jest.Mock).mockResolvedValue({
         data: { data: ocrResults },
       });
 
       const files = [{ filePath: "path/1.jpg", mimeType: "image/jpeg" }];
       const result = await scanWithUploadedPaths(files);
-      expect(api.post).toHaveBeenCalledWith("/motors/scan-batch", { files });
-      expect(result).toEqual(ocrResults);
+      expect(api.post).toHaveBeenCalledWith(
+        "/motors/scan-batch",
+        { files },
+        { timeout: 120_000 },
+      );
+      expect(result).toEqual([
+        expect.objectContaining({
+          brand: "Honda",
+          name: "Beat",
+          plateNumber: "BE 1234",
+          year: 2021,
+          displacement: 110,
+        }),
+      ]);
     });
   });
 });

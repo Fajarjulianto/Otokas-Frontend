@@ -19,4 +19,6 @@ export type OcrResult = {
 
 export type PhotoItem = {
   uri: string;
+  width?: number;
+  height?: number;
 };

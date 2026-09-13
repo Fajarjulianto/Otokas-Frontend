@@ -21,6 +21,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function StokPage() {
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<"available" | "sold">(
+    "available",
+  );
   const { data: motors, isLoading, isError, refetch } = useMotors();
   const { data: subscription } = useSubscriptionStatus();
   const markAsSoldMutation = useMarkAsSold();
@@ -29,16 +32,26 @@ export default function StokPage() {
 
   const motorList = motors ?? [];
 
+  const availableCount = motorList.filter(
+    (motor) => motor.status !== "SOLD",
+  ).length;
+  const soldCount = motorList.filter(
+    (motor) => motor.status === "SOLD",
+  ).length;
+
   const filtered = motorList.filter((m) => {
     const q = search.toLowerCase();
-    return (
+    const matchesTab =
+      activeTab === "sold" ? m.status === "SOLD" : m.status !== "SOLD";
+    const matchesSearch =
       m.brand.toLowerCase().includes(q) ||
       m.name.toLowerCase().includes(q) ||
-      String(m.year ?? "").includes(q)
-    );
+      String(m.year ?? "").includes(q);
+
+    return matchesTab && matchesSearch;
   });
 
-  const totalStok = motorList.length;
+  const totalStok = availableCount;
 
   return (
     <SafeAreaView className="flex-1 bg-slate-100" edges={["top"]}>
@@ -77,6 +90,60 @@ export default function StokPage() {
             className="flex-1 py-4 text-slate-900 text-base"
           />
         </View>
+
+        <View className="bg-slate-200 p-1 rounded-xl flex-row mt-3">
+          {(
+            [
+              { key: "available", label: "Tersedia", count: availableCount },
+              { key: "sold", label: "Terjual", count: soldCount },
+            ] as const
+          ).map((tab) => {
+            const isActive = activeTab === tab.key;
+
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => setActiveTab(tab.key)}
+                activeOpacity={0.8}
+                className={`flex-1 py-2.5 rounded-lg flex-row items-center justify-center gap-2 ${
+                  isActive ? "bg-white" : ""
+                }`}
+                style={
+                  isActive
+                    ? {
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.08,
+                        shadowRadius: 2,
+                        elevation: 1,
+                      }
+                    : undefined
+                }
+              >
+                <Text
+                  className={`text-sm font-semibold ${
+                    isActive ? "text-slate-900" : "text-slate-500"
+                  }`}
+                >
+                  {tab.label}
+                </Text>
+                <View
+                  className={`min-w-6 h-6 px-1.5 rounded-full items-center justify-center ${
+                    isActive ? "bg-otokas-primary" : "bg-slate-300"
+                  }`}
+                >
+                  <Text
+                    className={`text-xs font-bold ${
+                      isActive ? "text-white" : "text-slate-600"
+                    }`}
+                  >
+                    {tab.count}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
       {isLoading ? (
@@ -96,7 +163,7 @@ export default function StokPage() {
             <Text className="text-white font-semibold">Muat Ulang</Text>
           </TouchableOpacity>
         </View>
-      ) : totalStok === 0 ? (
+      ) : motorList.length === 0 ? (
         <View className="flex-1 items-center justify-center px-8">
           <View
             className="bg-white rounded-3xl p-10 items-center w-full"
@@ -168,10 +235,17 @@ export default function StokPage() {
           removeClippedSubviews={true}
           ListEmptyComponent={
             <View className="items-center justify-center py-16">
-              <Search size={40} color="#cbd5e1" strokeWidth={1.5} />
+              {search ? (
+                <Search size={40} color="#cbd5e1" strokeWidth={1.5} />
+              ) : (
+                <Bike size={40} color="#cbd5e1" strokeWidth={1.5} />
+              )}
               <Text className="text-slate-400 text-base mt-3 text-center">
-                Tidak ada unit ditemukan{"\n"}untuk pencarian &quot;{search}
-                &quot;
+                {search
+                  ? `Tidak ada unit ditemukan\nuntuk pencarian "${search}"`
+                  : activeTab === "sold"
+                    ? "Belum ada motor terjual."
+                    : "Tidak ada motor tersedia."}
               </Text>
             </View>
           }

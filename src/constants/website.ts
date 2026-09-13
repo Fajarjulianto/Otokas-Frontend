@@ -10,7 +10,7 @@ export const WEBSITE_THEME_COLORS = [
 
 export const WEBSITE_TEMPLATES = [
   {
-    key: "orange-catalog",
+    key: "t-001",
     name: "Template 1",
     description:
       "Katalog dengan hero promo, pencarian, filter kategori, dan kartu unit.",
@@ -29,11 +29,12 @@ export const WEBSITE_TEMPLATES = [
     description: "Slot sementara untuk desain template kedua.",
     primaryColor: "#0f172a",
     secondaryColor: "#cbd5e1",
-    badgeText: "SEGERA HADIR",
-    title: "Template Kedua",
-    subtitle: "Desain akan disesuaikan setelah referensi berikutnya tersedia.",
+    badgeText: "TERSEDIA",
+    title: "Katalog Motor Terbaru",
+    subtitle:
+      "Desain katalog yang menampilkan daftar motor langsung di bawah pencarian.",
     showAddress: false,
-    isDummy: true,
+    isDummy: false,
   },
 ] as const;
 

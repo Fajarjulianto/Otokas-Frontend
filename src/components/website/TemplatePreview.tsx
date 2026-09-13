@@ -1,9 +1,9 @@
 import {
-  Camera,
-  ChevronDown,
-  Gauge,
-  MapPin,
-  Search,
+    Camera,
+    ChevronDown,
+    Gauge,
+    MapPin,
+    Search,
 } from "lucide-react-native";
 import React from "react";
 import { Image, Text, View } from "react-native";
@@ -15,6 +15,7 @@ type CatalogTemplatePreviewProps = {
   heroImage: string | null;
   subtitle: string;
   title: string;
+  variant?: "hero" | "list";
   compact?: boolean;
 };
 
@@ -63,9 +64,113 @@ export function CatalogTemplatePreview({
   color,
   compact = false,
   heroImage,
+  variant = "hero",
   subtitle,
   title,
 }: CatalogTemplatePreviewProps) {
+  if (variant === "list") {
+    return (
+      <View className="bg-slate-50 overflow-hidden">
+        <View
+          className={`bg-white border-b border-slate-100 ${compact ? "px-3 py-2" : "px-4 py-3"}`}
+        >
+          <Text
+            className={`font-black text-slate-900 ${compact ? "text-[8px]" : "text-sm"}`}
+          >
+            Otokas
+          </Text>
+        </View>
+
+        <View className={compact ? "p-2" : "p-3"}>
+          <View
+            className={`bg-white border border-slate-200 rounded-xl ${compact ? "p-2" : "p-3"}`}
+          >
+            <View
+              className={`flex-row items-center gap-2 ${compact ? "pb-2" : "pb-3"}`}
+            >
+              <View
+                className={`flex-1 bg-slate-100 border border-slate-300 rounded-md ${compact ? "px-2 py-1" : "px-3 py-2"}`}
+              >
+                <Text
+                  className={`text-slate-400 ${compact ? "text-[6px]" : "text-[9px]"}`}
+                >
+                  Cari Honda, Yamaha, atau tipe lainnya...
+                </Text>
+              </View>
+              <View
+                className={`bg-slate-200 rounded-md items-center justify-center ${compact ? "w-8 h-6" : "w-12 h-8"}`}
+              >
+                <Text
+                  className={`font-semibold text-slate-700 ${compact ? "text-[6px]" : "text-[9px]"}`}
+                >
+                  Cari
+                </Text>
+              </View>
+            </View>
+            <Text
+              className={`font-black text-slate-900 ${compact ? "text-[8px]" : "text-sm"}`}
+            >
+              Katalog Motor Terbaru
+            </Text>
+          </View>
+
+          <View
+            className={`flex-row ${compact ? "gap-1.5 mt-2" : "gap-2 mt-3"}`}
+          >
+            {PREVIEW_MOTORS.map((motor) => (
+              <View
+                key={motor.plate}
+                className={`flex-1 bg-white border border-slate-100 overflow-hidden ${compact ? "rounded-md" : "rounded-xl"}`}
+              >
+                <View className={`relative ${compact ? "h-9" : "h-[120px]"}`}>
+                  <MotorImagePlaceholder heroImage={heroImage} />
+                  <View className="absolute left-1.5 top-1.5 bg-blue-600 rounded px-1.5 py-0.5">
+                    <Text
+                      className={`text-white font-bold ${compact ? "text-[4px]" : "text-[7px]"}`}
+                    >
+                      Tersedia
+                    </Text>
+                  </View>
+                </View>
+                <View className={compact ? "p-1.5" : "p-2.5"}>
+                  <Text
+                    numberOfLines={1}
+                    className={`font-bold text-slate-800 ${compact ? "text-[5px] mt-0.5" : "text-[9px] mt-1"}`}
+                  >
+                    {motor.name}
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    className={`font-black text-slate-950 ${compact ? "text-[6px] mt-1" : "text-[10px] mt-1"}`}
+                  >
+                    {motor.price}
+                  </Text>
+                  {!compact && (
+                    <View className="flex-row gap-1.5 mt-2 pt-2 border-t border-slate-100">
+                      <View className="flex-1 items-center rounded-md bg-slate-100 py-1">
+                        <Text className="text-[6px] font-bold text-slate-400">
+                          Lihat Detail
+                        </Text>
+                      </View>
+                      <View
+                        style={{ backgroundColor: color }}
+                        className="flex-1 items-center rounded-md py-1"
+                      >
+                        <Text className="text-[6px] font-bold text-white">
+                          WhatsApp
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View className="bg-slate-50 overflow-hidden">
       <View
@@ -208,7 +313,11 @@ export function CatalogTemplatePreview({
   );
 }
 
-export function DummyTemplatePreview({ compact = false }: { compact?: boolean }) {
+export function DummyTemplatePreview({
+  compact = false,
+}: {
+  compact?: boolean;
+}) {
   return (
     <View
       className={`bg-slate-100 border border-dashed border-slate-300 items-center justify-center ${compact ? "min-h-[230px]" : "min-h-[370px]"}`}

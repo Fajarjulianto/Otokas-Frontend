@@ -9,6 +9,7 @@ import {
   AuthScreen,
 } from "@/src/components/auth/AuthScreen";
 import { useRegister } from "@/src/hooks/useAuth";
+import { ApiError } from "@/src/lib/api";
 import { EMAIL_REGEX } from "@/src/utils/validation";
 import { useRouter } from "expo-router";
 import { Check, Mail, User, X } from "lucide-react-native";
@@ -64,7 +65,16 @@ export default function RegisterPage() {
           router.replace("/(auth)/login");
         },
         onError: (error) => {
-          console.error("Register Gagal:", error);
+          console.error(
+            "Register Gagal:",
+            error instanceof ApiError
+              ? {
+                  message: error.message,
+                  status: error.status,
+                  details: error.details,
+                }
+              : error,
+          );
         },
       },
     );

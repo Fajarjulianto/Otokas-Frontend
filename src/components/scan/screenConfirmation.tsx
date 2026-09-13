@@ -1,14 +1,19 @@
-import { useInsertMotor } from "@/src/hooks/useMotors";
-import type { Motor } from "@/src/types/motor";
-import { OcrResult } from "@/src/types/scan";
-import { formatRupiahInput, parseRupiah } from "@/src/utils/formatRupiah";
-import { useRouter } from "expo-router";
+import { MotorPhotoPicker } from "@/src/components/motor/MotorPhotoPicker";
 import {
-  ArrowLeft,
-  CarFront,
-  CheckCircle,
-  DollarSign,
-} from "lucide-react-native";
+  ScanDataRows,
+  type EditableScanField,
+} from "@/src/components/scan/ScanDataRows";
+import { useInsertMotor, useUploadMotorImages } from "@/src/hooks/useMotors";
+import type { OcrResult } from "@/src/types/scan";
+import { formatRupiahInput, parseRupiah } from "@/src/utils/formatRupiah";
+import {
+  getScanDataWarning,
+  hasRequiredScanData,
+  toMotorInsertFromScan,
+} from "@/src/utils/scanMotor";
+import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
+import { ArrowLeft, CheckCircle, DollarSign, ScanLine } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -38,78 +43,96 @@ export default function ScreenConfirmation({
 }) {
   const router = useRouter();
   const insertMotorMutation = useInsertMotor();
+  const uploadMotorImagesMutation = useUploadMotorImages();
 
-  const [namaPopuler, setNamaPopuler] = useState(ocr.name ?? "");
   const [hargaJual, setHargaJual] = useState("");
   const [hargaBeli, setHargaBeli] = useState("");
-  const [platEdit, setPlatEdit] = useState(ocr.plateNumber ?? "");
-  const [tahunEdit, setTahunEdit] = useState(
-    ocr.year ? String(ocr.year) : "",
-  );
+  const [brand, setBrand] = useState(ocr.brand ?? "");
+  const [name, setName] = useState(ocr.name ?? "");
+  const [year, setYear] = useState<number | null>(ocr.year ?? null);
+  const [color, setColor] = useState(ocr.color ?? "");
+  const [photos, setPhotos] = useState<ImagePicker.ImagePickerAsset[]>([]);
 
   const buying = parseRupiah(hargaBeli);
   const selling = parseRupiah(hargaJual);
+  const editableOcr: OcrResult = { ...ocr, brand, name, year, color };
+  const hasScanData = hasRequiredScanData(editableOcr);
+  const scanWarning = getScanDataWarning(editableOcr);
+  const missingFields = {
+    brand: !ocr.brand?.trim(),
+    name: !ocr.name?.trim(),
+    year: !ocr.year,
+    color: !ocr.color?.trim(),
+  };
+  const isSubmitting =
+    insertMotorMutation.isPending || uploadMotorImagesMutation.isPending;
   const margin =
     buying > 0 && selling > 0
       ? (((selling - buying) / buying) * 100).toFixed(1)
       : null;
   const profit = buying > 0 && selling > 0 ? selling - buying : null;
 
-  const isValid = namaPopuler.trim() !== "" && hargaBeli !== "";
+  const isValid = hasScanData && buying > 0;
 
-  function handleSimpan() {
+  const handleScanFieldChange = (field: EditableScanField, value: string) => {
+    if (field === "brand") setBrand(value);
+    if (field === "name") setName(value);
+    if (field === "color") setColor(value);
+    if (field === "year") {
+      const yearValue = value.replace(/\D/g, "").slice(0, 4);
+      setYear(yearValue ? Number(yearValue) : null);
+    }
+  };
+
+  async function handleSimpan() {
     if (!isValid) return;
-    const dataMotor = {
-      brand: ocr.brand,
-      name: namaPopuler,
-      year: Number(tahunEdit) || undefined,
-      buyingPrice: buying,
-      sellingPrice: selling || undefined,
-      plateNumber: platEdit || undefined,
-      frameNumber: ocr.frameNumber || undefined,
-      engineNumber: ocr.engineNumber || undefined,
-      color: ocr.color || undefined,
-      stnkCode: ocr.stnkCode || undefined,
-      category: (ocr.category as Motor["category"]) || undefined,
-      displacement: ocr.displacement || undefined,
-      isIncomplete: false,
-    };
-    insertMotorMutation.mutate(dataMotor, {
-      onSuccess: () => {
-        if (onSuccessNext) {
-          Alert.alert(
-            "Berhasil", 
-            totalCount && currentIndex && currentIndex < totalCount
-              ? `Motor ${currentIndex} dari ${totalCount} berhasil disimpan. Lanjut ke motor berikutnya.`
-              : "Motor berhasil disimpan dari scan STNK.",
-            [
-              {
-                text: "OK",
-                onPress: () => {
-                  onSuccessNext();
-                },
-              },
-            ]
+    const dataMotor = toMotorInsertFromScan(editableOcr, buying, selling);
+
+    try {
+      const createdMotor = await insertMotorMutation.mutateAsync(dataMotor);
+      let successMessage =
+        totalCount && currentIndex && currentIndex < totalCount
+          ? `Motor ${currentIndex} dari ${totalCount} berhasil disimpan.`
+          : "Motor berhasil disimpan dari scan STNK.";
+
+      if (photos.length > 0) {
+        try {
+          await uploadMotorImagesMutation.mutateAsync({
+            motorId: createdMotor.id,
+            files: photos,
+          });
+          successMessage = "Motor dan foto berhasil disimpan dari scan STNK.";
+        } catch (photoError) {
+          console.warn(
+            "[ScreenConfirmation] Foto motor gagal diupload:",
+            photoError,
           );
-        } else {
-          Alert.alert("Berhasil", "Motor berhasil disimpan dari scan STNK.", [
-            {
-              text: "OK",
-              onPress: () => {
-                onBack();
-                router.replace("/(tabs)/stok");
-              },
-            },
-          ]);
+          successMessage =
+            "Motor berhasil disimpan, tetapi upload foto gagal. Foto dapat ditambahkan dari detail motor.";
         }
-      },
-      onError: (error) => {
-        Alert.alert(
-          "Gagal",
-          error.message || "Gagal menyimpan motor. Coba lagi.",
-        );
-      },
-    });
+      }
+
+      Alert.alert("Berhasil", successMessage, [
+        {
+          text: "OK",
+          onPress: () => {
+            if (onSuccessNext) {
+              onSuccessNext();
+            } else {
+              onBack();
+              router.replace("/(tabs)/stok");
+            }
+          },
+        },
+      ]);
+    } catch (error) {
+      Alert.alert(
+        "Gagal",
+        error instanceof Error
+          ? error.message
+          : "Gagal menyimpan motor. Coba lagi.",
+      );
+    }
   }
 
   return (
@@ -127,10 +150,10 @@ export default function ScreenConfirmation({
           </TouchableOpacity>
           <View className="flex-1">
             <Text className="text-white text-xl font-bold">
-              Konfirmasi Data
+              Hasil Scan STNK
             </Text>
             <Text className="text-blue-200 text-sm mt-0.5">
-              Periksa hasil scan, lalu lengkapi
+              Data STNK otomatis, lengkapi harga motor
             </Text>
           </View>
         </View>
@@ -141,81 +164,43 @@ export default function ScreenConfirmation({
           contentContainerStyle={{ padding: 20, paddingBottom: 130 }}
         >
           <View
-            className="bg-white rounded-2xl p-4 mb-5"
+            className="bg-white rounded-2xl overflow-hidden mb-5"
             style={{ elevation: 2 }}
           >
-            <Text className="text-slate-500 text-sm font-semibold mb-3">
-              Data dari STNK
-            </Text>
-            <View className="flex-row flex-wrap gap-2">
-              {[
-                { label: "Merek", value: ocr.brand },
-                { label: "Kode Tipe", value: ocr.stnkCode },
-                { label: "Warna", value: ocr.color },
-                { label: "Rangka", value: ocr.frameNumber },
-                { label: "Mesin", value: ocr.engineNumber },
-              ]
-                .filter((d) => d.value)
-                .map((d) => (
-                  <View
-                    key={d.label}
-                    className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl"
-                  >
-                    <Text className="text-slate-400 text-xs">{d.label}</Text>
-                    <Text className="text-slate-700 text-sm font-semibold">
-                      {d.value}
-                    </Text>
-                  </View>
-                ))}
+            <View className="bg-slate-50 px-4 py-4 flex-row items-center gap-3 border-b border-slate-100">
+              <View className="w-10 h-10 bg-blue-100 rounded-xl items-center justify-center">
+                <ScanLine size={21} color="#1e40af" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-slate-900 font-bold text-base">
+                  {[brand, name].filter(Boolean).join(" ") ||
+                    "Data motor belum dikenali"}
+                </Text>
+                <Text className="text-slate-500 text-xs mt-0.5">
+                  Data berikut dibaca otomatis dari STNK
+                </Text>
+              </View>
             </View>
-          </View>
 
-          <View className="flex-row gap-3 mb-5">
-            <View className="flex-1">
-              <Text className="text-slate-700 font-semibold text-base mb-2">
-                Plat Nomor
-              </Text>
-              <TextInput
-                value={platEdit}
-                onChangeText={(t) => setPlatEdit(t.toUpperCase())}
-                autoCapitalize="characters"
-                placeholder="BE 1234 AB"
-                className="bg-white border border-slate-200 p-4 rounded-xl text-slate-900 text-base"
-              />
-            </View>
-            <View className="flex-1">
-              <Text className="text-slate-700 font-semibold text-base mb-2">
-                Tahun
-              </Text>
-              <TextInput
-                value={tahunEdit}
-                onChangeText={(t) =>
-                  setTahunEdit(t.replace(/\D/g, "").slice(0, 4))
-                }
-                keyboardType="numeric"
-                maxLength={4}
-                placeholder="2021"
-                className="bg-white border border-slate-200 p-4 rounded-xl text-slate-900 text-base"
-              />
-            </View>
-          </View>
-
-          <View className="mb-5">
-            <View className="flex-row items-center gap-2 mb-2">
-              <CarFront size={16} color="#475569" />
-              <Text className="text-slate-700 font-semibold text-base">
-                Nama Motor <Text className="text-red-400">*</Text>
-              </Text>
-            </View>
-            <TextInput
-              value={namaPopuler}
-              onChangeText={setNamaPopuler}
-              placeholder={`Contoh: Beat FI, Mio M3`}
-              className="bg-white border border-slate-200 p-4 rounded-xl text-slate-900 text-base"
+            <ScanDataRows
+              ocr={editableOcr}
+              editableFields={missingFields}
+              onFieldChange={handleScanFieldChange}
             />
           </View>
 
-          <View className="mb-5">
+          {scanWarning && (
+            <View className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5">
+              <Text className="text-amber-700 text-sm font-medium">
+                {scanWarning}
+              </Text>
+            </View>
+          )}
+
+          <View className="bg-white rounded-2xl p-4 mb-5" style={{ elevation: 1 }}>
+            <Text className="text-slate-800 text-base font-bold mb-4">
+              Lengkapi Harga
+            </Text>
             <View className="flex-row items-center gap-2 mb-2">
               <DollarSign size={16} color="#475569" />
               <Text className="text-slate-700 font-semibold text-base">
@@ -234,10 +219,8 @@ export default function ScreenConfirmation({
                 className="bg-white border border-slate-200 p-4 pl-12 rounded-xl text-slate-900 text-base"
               />
             </View>
-          </View>
 
-          <View className="mb-2">
-            <View className="flex-row items-center gap-2 mb-2">
+            <View className="flex-row items-center gap-2 mt-5 mb-2">
               <DollarSign size={16} color="#475569" />
               <Text className="text-slate-700 font-semibold text-base">
                 Target Harga Jual
@@ -255,25 +238,36 @@ export default function ScreenConfirmation({
                 className="bg-white border border-slate-200 p-4 pl-12 rounded-xl text-slate-900 text-base"
               />
             </View>
-          </View>
 
-          {margin !== null && profit !== null && (
-            <View className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex-row items-center justify-between mt-4">
-              <Text className="text-emerald-700 font-semibold text-base">
-                Estimasi Untung
-              </Text>
-              <View className="flex-row items-center gap-2">
-                <Text className="text-emerald-700 text-base font-medium">
-                  Rp {profit.toLocaleString("id-ID")}
+            {margin !== null && profit !== null && (
+              <View className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex-row items-center justify-between mt-4">
+                <Text className="text-emerald-700 font-semibold text-sm">
+                  Estimasi Untung
                 </Text>
-                <View className="bg-emerald-500 px-2.5 py-1 rounded-lg">
-                  <Text className="text-white text-sm font-bold">
-                    {margin}%
+                <View className="flex-row items-center gap-2">
+                  <Text className="text-emerald-700 text-sm font-medium">
+                    Rp {profit.toLocaleString("id-ID")}
                   </Text>
+                  <View className="bg-emerald-500 px-2.5 py-1 rounded-lg">
+                    <Text className="text-white text-xs font-bold">
+                      {margin}%
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          )}
+            )}
+          </View>
+
+          <View className="bg-white rounded-2xl p-4 mb-5" style={{ elevation: 1 }}>
+            <Text className="text-slate-800 text-base font-bold mb-3">
+              Foto Motor
+            </Text>
+            <MotorPhotoPicker
+              photos={photos}
+              onChange={setPhotos}
+              disabled={isSubmitting}
+            />
+          </View>
         </ScrollView>
 
         <View
@@ -282,15 +276,17 @@ export default function ScreenConfirmation({
         >
           {!isValid && (
             <Text className="text-slate-400 text-sm text-center mb-3">
-              Wajib diisi: Nama Motor dan Harga Beli
+              {hasScanData
+                ? "Harga Beli wajib lebih dari Rp 0"
+                : "Data merek dan nama motor belum terbaca"}
             </Text>
           )}
           <TouchableOpacity
             onPress={handleSimpan}
-            disabled={!isValid || insertMotorMutation.isPending}
-            className={`w-full p-4 rounded-2xl flex-row items-center justify-center gap-2 ${isValid && !insertMotorMutation.isPending ? "bg-[#f59e0b]" : "bg-slate-200"}`}
+            disabled={!isValid || isSubmitting}
+            className={`w-full p-4 rounded-2xl flex-row items-center justify-center gap-2 ${isValid && !isSubmitting ? "bg-[#f59e0b]" : "bg-slate-200"}`}
           >
-            {insertMotorMutation.isPending ? (
+            {isSubmitting ? (
               <ActivityIndicator color="white" />
             ) : (
               <>

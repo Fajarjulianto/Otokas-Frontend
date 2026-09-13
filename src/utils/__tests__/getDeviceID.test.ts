@@ -1,83 +1,52 @@
-import { Platform } from "react-native";
-
-import * as Application from "expo-application";
+import { randomUUID } from "expo-crypto";
+import * as SecureStore from "expo-secure-store";
 import { getDeviceId } from "../getDeviceID";
 
-// ── Mocks ──
-jest.mock("expo-application", () => ({
-  getAndroidId: jest.fn(),
-  getIosIdForVendorAsync: jest.fn(),
+jest.mock("expo-crypto", () => ({
+  randomUUID: jest.fn(),
+}));
+
+jest.mock("expo-secure-store", () => ({
+  getItemAsync: jest.fn(),
+  setItemAsync: jest.fn(),
 }));
 
 describe("getDeviceId", () => {
-  const originalOS = Platform.OS;
-
   afterEach(() => {
     jest.resetAllMocks();
-    // Restore original platform
-    Object.defineProperty(Platform, "OS", { value: originalOS });
   });
 
-  // ── Android ──
-  describe("Android", () => {
-    beforeEach(() => {
-      Object.defineProperty(Platform, "OS", { value: "android" });
-    });
+  it("returns a previously saved device ID", async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue("saved-id");
 
-    it("returns Android ID when available", async () => {
-      (Application.getAndroidId as jest.Mock).mockReturnValue("android-123");
-      const id = await getDeviceId();
-      expect(id).toBe("android-123");
-    });
-
-    it('returns "unknown-android" when Android ID is empty', async () => {
-      (Application.getAndroidId as jest.Mock).mockReturnValue("");
-      const id = await getDeviceId();
-      expect(id).toBe("unknown-android");
-    });
-
-    it('returns "unknown-android" when Android ID is null', async () => {
-      (Application.getAndroidId as jest.Mock).mockReturnValue(null);
-      const id = await getDeviceId();
-      expect(id).toBe("unknown-android");
-    });
+    await expect(getDeviceId()).resolves.toBe("saved-id");
+    expect(randomUUID).not.toHaveBeenCalled();
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
   });
 
-  // ── iOS ──
-  describe("iOS", () => {
-    beforeEach(() => {
-      Object.defineProperty(Platform, "OS", { value: "ios" });
-    });
+  it("creates and stores a UUID when no device ID exists", async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+    (randomUUID as jest.Mock).mockReturnValue("generated-id");
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
 
-    it("returns iOS Vendor ID when available", async () => {
-      (Application.getIosIdForVendorAsync as jest.Mock).mockResolvedValue(
-        "ios-vendor-456"
-      );
-      const id = await getDeviceId();
-      expect(id).toBe("ios-vendor-456");
-    });
-
-    it('returns "unknown-ios" when iOS Vendor ID is null', async () => {
-      (Application.getIosIdForVendorAsync as jest.Mock).mockResolvedValue(null);
-      const id = await getDeviceId();
-      expect(id).toBe("unknown-ios");
-    });
+    await expect(getDeviceId()).resolves.toBe("generated-id");
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      "otokas_device_id",
+      "generated-id",
+    );
   });
 
-  // ── Other platforms ──
-  it('returns "unknown-device" for unsupported platform', async () => {
-    Object.defineProperty(Platform, "OS", { value: "web" });
-    const id = await getDeviceId();
-    expect(id).toBe("unknown-device");
-  });
+  it("returns a unique fallback UUID when secure storage throws", async () => {
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    (randomUUID as jest.Mock).mockReturnValue("fallback-uuid");
+    (SecureStore.getItemAsync as jest.Mock).mockRejectedValue(
+      new Error("Simulated failure"),
+    );
 
-  // ── Error handling ──
-  it('returns "fallback-id" when an exception is thrown', async () => {
-    Object.defineProperty(Platform, "OS", { value: "android" });
-    (Application.getAndroidId as jest.Mock).mockImplementation(() => {
-      throw new Error("Simulated failure");
-    });
-    const id = await getDeviceId();
-    expect(id).toBe("fallback-id");
+    await expect(getDeviceId()).resolves.toBe("fallback-uuid");
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

@@ -24,6 +24,11 @@ import CameraPermissionScreen from "@/src/components/scan/CameraPermissionScreen
 import ScreenConfirmation from "@/src/components/scan/screenConfirmation";
 import Viewfinder from "@/src/components/scan/viewFinder";
 import { OcrResult, PhotoItem } from "@/src/types/scan";
+import {
+  prepareImageForUpload,
+  type PreparedWebPImage,
+  WEBP_MIME_TYPE,
+} from "@/src/utils/imageUpload";
 
 const MAX_PHOTOS = 10;
 
@@ -77,8 +82,13 @@ export default function ScanScreen() {
     setFlashFeedback(true);
     setTimeout(() => setFlashFeedback(false), 150);
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
-      if (photo?.uri) setPhotos((prev) => [...prev, { uri: photo.uri }]);
+      const photo = await cameraRef.current.takePictureAsync({ quality: 1 });
+      if (photo?.uri) {
+        setPhotos((prev) => [
+          ...prev,
+          { uri: photo.uri, width: photo.width, height: photo.height },
+        ]);
+      }
     } catch (e) {
       console.error("[ScanScreen] Gagal mengambil foto:", e);
       setErrorMsg((e as Error).message || "Gagal mengambil foto.");
@@ -93,29 +103,52 @@ export default function ScanScreen() {
     if (selectedPhotos.length === 0) return;
     setIsProcessing(true);
     setErrorMsg(null);
+    let failedStep = "menyiapkan upload";
 
     try {
       setProcessingLabel(`Menyiapkan upload ${selectedPhotos.length} foto...`);
 
+      const preparedPhotos: PreparedWebPImage[] = [];
+      for (let i = 0; i < selectedPhotos.length; i += 1) {
+        preparedPhotos.push(
+          await prepareImageForUpload(selectedPhotos[i], {
+            compress: 0.82,
+            maxWidth: 2048,
+            fallbackName: `stnk-scan-${Date.now()}-${i}`,
+          }),
+        );
+      }
+
       // 1. Susun payload sesuai RequestUploadUrlsDto backend
-      const uploadPayload = selectedPhotos.map((_, i) => ({
-        fileName: `stnk-scan-${Date.now()}-${i}.jpg`,
-        mimeType: "image/jpeg",
+      const uploadPayload = preparedPhotos.map(({ fileName, mimeType }) => ({
+        fileName,
+        mimeType,
       }));
       const uploadItems = await getUploadUrls(uploadPayload);
 
+      if (
+        uploadItems.length !== selectedPhotos.length ||
+        uploadItems.some((item) => !item?.uploadUrl || !item.filePath)
+      ) {
+        throw new Error(
+          "Server tidak mengembalikan URL upload STNK yang lengkap.",
+        );
+      }
+
+      failedStep = "mengupload foto";
       setProcessingLabel(`Mengupload foto...`);
       // 2. Upload ke GCS memakai URL dari backend
       await Promise.all(
-        selectedPhotos.map((photo, i) =>
-          uploadFileToGCS(uploadItems[i].uploadUrl, photo.uri, "image/jpeg"),
+        preparedPhotos.map((photo, i) =>
+          uploadFileToGCS(uploadItems[i].uploadUrl, photo.uri, photo.mimeType),
         ),
       );
 
+      failedStep = "membaca STNK dengan AI";
       setProcessingLabel("Membaca STNK dengan AI...");
       const scanPayload = uploadItems.map((item) => ({
         filePath: item.filePath,
-        mimeType: "image/jpeg",
+        mimeType: WEBP_MIME_TYPE,
       }));
       const results = await scanWithUploadedPaths(scanPayload);
       const resultsArray = Array.isArray(results) ? results : [results];
@@ -130,11 +163,21 @@ export default function ScanScreen() {
         );
       }
 
+      if (validResults.length > 1) {
+        setPhotos([]);
+        setIsReviewing(false);
+        router.replace({
+          pathname: "/motor/batch-tambah",
+          params: { scanResults: JSON.stringify(validResults) },
+        });
+        return;
+      }
+
       setOcrResults(validResults);
       setActiveScanIndex(0);
-    } catch (e: any) {
-      console.error("[ScanScreen] Gagal memproses OCR:", e);
-      const msg = e?.message || "";
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      console.error(`[ScanScreen] Gagal saat ${failedStep}:`, e);
 
       if (
         msg.toLowerCase().includes("premium") ||
@@ -158,7 +201,10 @@ export default function ScanScreen() {
         );
       } else {
         setErrorMsg(
-          msg || "Gagal memproses foto. Pastikan foto terang dan coba lagi.",
+          msg.toLowerCase().includes("network")
+            ? `Koneksi terputus saat ${failedStep}. Periksa internet lalu coba lagi.`
+            : msg ||
+                "Gagal memproses foto. Pastikan foto terang dan coba lagi.",
         );
       }
     } finally {
@@ -247,12 +293,12 @@ export default function ScanScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <CameraView
         ref={cameraRef}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         facing="back"
       />
 
       <View
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         className="z-10 flex-1 justify-between"
       >
         {flashFeedback && (

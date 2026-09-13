@@ -10,9 +10,6 @@ import {
   Home,
   Lock,
   LogOut,
-  Mail,
-  MapPin,
-  Phone,
   User,
 } from "lucide-react-native";
 import React from "react";
@@ -35,7 +32,11 @@ const MenuItem = ({
   onPress,
   isHighlight = false,
 }: {
-  icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
+  icon: React.ComponentType<{
+    size: number;
+    color: string;
+    strokeWidth: number;
+  }>;
   iconColor?: string;
   iconBg?: string;
   title: string;
@@ -75,8 +76,8 @@ export default function ProfileScreen() {
 
   const displayName = profile?.dealerName || user?.dealerName || "Dealer";
   const displayEmail = profile?.email || user?.email || "";
-  const displayPhone = profile?.phoneNumber || "";
-  const displayAddress = profile?.address || user?.address || "";
+  // const displayPhone = profile?.phoneNumber || "";
+  // const displayAddress = profile?.address || user?.address || "";
   const initials = displayName
     .split(" ")
     .map((w: string) => w[0])
@@ -162,7 +163,7 @@ export default function ProfileScreen() {
         contentContainerStyle={{ paddingBottom: 40 }}
       >
         {/* KARTU KONTAK INFO */}
-        <View
+        {/* <View
           className="bg-white rounded-2xl p-5 mb-5 mt-5"
           style={{
             elevation: 2,
@@ -190,11 +191,11 @@ export default function ProfileScreen() {
               {displayAddress || "Belum diisi"}
             </Text>
           </View>
-        </View>
+        </View> */}
 
         {/* LIST MENU SETTING */}
         <View
-          className="bg-white rounded-2xl overflow-hidden mb-5"
+          className="bg-white rounded-2xl overflow-hidden mb-5 mt-5"
           style={{
             elevation: 2,
             shadowColor: "#000",

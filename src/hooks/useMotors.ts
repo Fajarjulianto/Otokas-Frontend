@@ -1,4 +1,5 @@
 import {
+  bulkInsertMotors,
   deleteMotor,
   fetchDashboardStats,
   fetchMotorById,
@@ -63,6 +64,16 @@ export function useInsertMotor() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (motor: MotorInsert) => insertMotor(motor),
+    onSuccess: () => {
+      invalidateMotorQueries(queryClient);
+    },
+  });
+}
+
+export function useBulkInsertMotors() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (motors: MotorInsert[]) => bulkInsertMotors(motors),
     onSuccess: () => {
       invalidateMotorQueries(queryClient);
     },

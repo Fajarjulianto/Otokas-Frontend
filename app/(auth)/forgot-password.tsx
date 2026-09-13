@@ -6,10 +6,11 @@ import {
 import { requestPasswordReset, resetPassword } from "@/src/services/userServices";
 import { EMAIL_REGEX, isStrongPassword } from "@/src/utils/validation";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Bike, ShieldCheck } from "lucide-react-native";
+import { ArrowLeft, ShieldCheck } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
+  Image,
   Platform,
   ScrollView,
   Text,
@@ -81,7 +82,11 @@ export default function ForgotPasswordPage() {
         >
           <View className="items-center justify-center py-10">
             <View className="bg-white/10 p-4 rounded-3xl mb-4">
-              <Bike color="white" size={48} strokeWidth={2} />
+              <Image
+                source={require("@/assets/images/splash-icon.png")}
+                style={{ width: 48, height: 48 }}
+                resizeMode="contain"
+              />
             </View>
             <Text className="text-white text-4xl font-bold tracking-tight">
               OTOKAS

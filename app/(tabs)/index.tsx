@@ -37,7 +37,8 @@ export default function BerandaPage() {
   const isPremium = subscription?.isPremium ?? false;
 
   const motorList = motors ?? [];
-  const latestMotors = motorList.slice(0, 5);
+  const stockMotors = motorList.filter((motor) => motor.status !== "SOLD");
+  const latestMotors = stockMotors.slice(0, 5);
   const hasNoMotors = !motorsLoading && motorList.length === 0;
 
   return (
@@ -107,12 +108,12 @@ export default function BerandaPage() {
               ) : (
                 <>
                   <View className="flex-row gap-3">
-              <DashboardStatCard
+                    <DashboardStatCard
                       icon={<Bike size={16} color="#f59e0b" strokeWidth={2} />}
                       label="Total Stok"
-                      value={`${motorList.length} unit`}
+                      value={`${stats?.stock ?? stockMotors.length} unit`}
                     />
-              <DashboardStatCard
+                    <DashboardStatCard
                       icon={
                         <ShoppingBag
                           size={16}
@@ -126,12 +127,12 @@ export default function BerandaPage() {
                   </View>
 
                   <View className="flex-row gap-3">
-              <DashboardAccentCard
+                    <DashboardAccentCard
                       icon={<Wallet size={16} color="white" strokeWidth={2} />}
                       label="Keuntungan Bulan Ini"
                       value={formatRupiah(stats?.currentMonthProfit ?? 0)}
                     />
-              <DashboardAccentCard
+                    <DashboardAccentCard
                       icon={
                         <BarChart2 size={16} color="white" strokeWidth={2} />
                       }
@@ -159,9 +160,29 @@ export default function BerandaPage() {
                 <View className="items-center py-8">
                   <ActivityIndicator size="small" color="#1e3a8a" />
                 </View>
+              ) : latestMotors.length === 0 ? (
+                <View className="bg-white rounded-2xl px-6 py-8 items-center">
+                  <View className="w-14 h-14 bg-slate-100 rounded-full items-center justify-center mb-3">
+                    <Bike size={28} color="#94a3b8" strokeWidth={1.5} />
+                  </View>
+                  <Text className="text-slate-800 font-bold text-base text-center">
+                    Tidak Ada Motor Tersedia
+                  </Text>
+                  <Text className="text-slate-400 text-sm text-center mt-1.5 leading-5">
+                    Semua motor telah terjual. Tambahkan unit baru untuk
+                    mengisi stok showroom.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => router.push("/(tabs)/tambah")}
+                    className="mt-4 bg-amber-400 px-5 py-3 rounded-xl flex-row items-center gap-2"
+                  >
+                    <Plus size={17} color="white" strokeWidth={2.5} />
+                    <Text className="text-white font-bold">Tambah Unit</Text>
+                  </TouchableOpacity>
+                </View>
               ) : (
                 latestMotors.map((motor) => (
-                <DashboardMotorItem
+                  <DashboardMotorItem
                     key={motor.id}
                     id={motor.id}
                     brand={motor.brand}

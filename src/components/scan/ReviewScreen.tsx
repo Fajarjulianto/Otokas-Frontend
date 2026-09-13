@@ -67,6 +67,19 @@ export default function ReviewScreen({
     }
   };
 
+  const removePhoto = (index: number) => {
+    setSelectedIndices((previousIndices) => {
+      const shiftedIndices = Array.from(previousIndices)
+        .filter((selectedIndex) => selectedIndex !== index)
+        .map((selectedIndex) =>
+          selectedIndex > index ? selectedIndex - 1 : selectedIndex,
+        );
+
+      return new Set(shiftedIndices);
+    });
+    onRemove(index);
+  };
+
   const isAllSelected =
     selectedIndices.size === photos.length && photos.length > 0;
   const hasSelection = selectedIndices.size > 0;
@@ -137,14 +150,7 @@ export default function ReviewScreen({
                 resizeMode="cover"
               />
               <TouchableOpacity
-                onPress={() => {
-                  setSelectedIndices((prev) => {
-                    const next = new Set(prev);
-                    next.delete(index);
-                    return next;
-                  });
-                  onRemove(index);
-                }}
+                onPress={() => removePhoto(index)}
                 className="absolute top-1.5 right-1.5 bg-black/60 rounded-full w-6 h-6 items-center justify-center"
               >
                 <X size={14} color="white" />

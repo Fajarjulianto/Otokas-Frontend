@@ -1,7 +1,14 @@
 import { api } from "@/src/lib/api";
+import { fetch as expoFetch } from "expo/fetch";
+import { File } from "expo-file-system";
 import { Motor, MotorImage, MotorStatus } from "../types/motor";
 import type { DashboardStats } from "../types/report";
 import type { OcrResult } from "../types/scan";
+import {
+  prepareImageForUpload,
+  type PreparedWebPImage,
+} from "../utils/imageUpload";
+import { normalizeScanResult } from "../utils/scanMotor";
 
 // Payload accepted by POST /motors and POST /motors/bulk (README §2 & §3).
 export type MotorInsert = {
@@ -95,31 +102,6 @@ export type LocalMotorImageFile = {
   fileSize?: number | null;
 };
 
-function inferFileName(file: LocalMotorImageFile, index: number): string {
-  if (file.fileName?.trim()) {
-    return file.fileName.trim();
-  }
-
-  const uriSegment = file.uri.split("/").pop();
-  if (uriSegment) {
-    return uriSegment;
-  }
-
-  return `motor-image-${Date.now()}-${index}.jpg`;
-}
-
-function inferMimeType(file: LocalMotorImageFile): string {
-  if (file.mimeType?.trim()) {
-    return file.mimeType;
-  }
-
-  const fileName = file.fileName?.toLowerCase() ?? file.uri.toLowerCase();
-  if (fileName.endsWith(".png")) return "image/png";
-  if (fileName.endsWith(".webp")) return "image/webp";
-
-  return "image/jpeg";
-}
-
 function toPublicAssetUrl(uploadUrl: string): string {
   try {
     const parsedUrl = new URL(uploadUrl);
@@ -146,19 +128,30 @@ export async function uploadFileToGCS(
   fileUri: string,
   mimeType: string = "image/jpeg",
 ): Promise<void> {
-  const fileResponse = await fetch(fileUri);
-  if (!fileResponse.ok && fileResponse.ok !== undefined) {
+  const file = new File(fileUri);
+  if (!file.exists || file.size <= 0) {
     throw new Error("Gagal membaca file foto dari perangkat.");
   }
 
-  const blob = await fileResponse.blob();
-  const uploadRes = await fetch(uploadUrl, {
-    method: "PUT",
-    body: blob,
-    headers: {
-      "Content-Type": mimeType,
-    },
-  });
+  let uploadRes: Response;
+  try {
+    uploadRes = await expoFetch(uploadUrl, {
+      method: "PUT",
+      body: file,
+      headers: {
+        "Content-Type": mimeType,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/resolve host|no address|dns|network request failed/i.test(message)) {
+      throw new Error(
+        "Tidak dapat terhubung ke Google Storage. Periksa koneksi internet, Private DNS, atau VPN perangkat.",
+      );
+    }
+
+    throw error;
+  }
 
   if (!uploadRes.ok) {
     throw new Error("Gagal mengunggah foto ke server penyimpanan.");
@@ -169,8 +162,19 @@ export async function uploadFileToGCS(
 export async function scanWithUploadedPaths(
   files: { filePath: string; mimeType: string }[],
 ): Promise<OcrResult[]> {
-  const response = await api.post("/motors/scan-batch", { files });
-  return response.data?.data || response.data;
+  // OCR/AI can take considerably longer than regular CRUD requests. Keep the
+  // global API timeout short, but allow this endpoint enough time to finish.
+  const response = await api.post(
+    "/motors/scan-batch",
+    { files },
+    { timeout: 120_000 },
+  );
+  const responseData: unknown = response.data?.data ?? response.data;
+  const rawResults = Array.isArray(responseData) ? responseData : [responseData];
+
+  return rawResults
+    .map(normalizeScanResult)
+    .filter((result): result is OcrResult => result !== null);
 }
 
 // ── Motor images: get presigned upload URLs (README §3) ──
@@ -211,12 +215,21 @@ export async function uploadMotorImages(
     return fetchMotorById(motorId);
   }
 
-  const preparedFiles = files.map((file, index) => ({
-    fileName: inferFileName(file, index),
-    mimeType: inferMimeType(file),
-  }));
+  const preparedFiles: PreparedWebPImage[] = [];
+  for (let index = 0; index < files.length; index += 1) {
+    preparedFiles.push(
+      await prepareImageForUpload(files[index], {
+        compress: 0.8,
+        maxWidth: 1600,
+        fallbackName: `motor-image-${Date.now()}-${index}`,
+      }),
+    );
+  }
 
-  const uploads = await getMotorImageUploadUrls(motorId, preparedFiles);
+  const uploads = await getMotorImageUploadUrls(
+    motorId,
+    preparedFiles.map(({ fileName, mimeType }) => ({ fileName, mimeType })),
+  );
   if (
     uploads.length !== files.length ||
     uploads.some((upload) => !upload?.uploadUrl || !upload.filePath)
@@ -225,11 +238,11 @@ export async function uploadMotorImages(
   }
 
   await Promise.all(
-    files.map((file, index) =>
+    preparedFiles.map((file, index) =>
       uploadFileToGCS(
         uploads[index].uploadUrl,
         file.uri,
-        preparedFiles[index].mimeType,
+        file.mimeType,
       ),
     ),
   );
@@ -239,9 +252,9 @@ export async function uploadMotorImages(
     ...uploads.map((upload, index) => ({
       storageKey: upload.filePath,
       url: toPublicAssetUrl(upload.uploadUrl),
-      width: files[index].width,
-      height: files[index].height,
-      size: files[index].fileSize ?? undefined,
+      width: preparedFiles[index].width,
+      height: preparedFiles[index].height,
+      size: preparedFiles[index].fileSize,
     })),
   ];
 

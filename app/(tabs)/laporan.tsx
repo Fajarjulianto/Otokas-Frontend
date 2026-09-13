@@ -1,22 +1,15 @@
-import {
-  SoldMotorItem,
-  StatCard,
-} from "@/src/components/report/ReportCards";
-import {
-  useBestSelling,
-  useDailySellingReport,
-  useWeeklySellingReport,
-} from "@/src/hooks/useAnalytics";
+import { SoldMotorItem, StatCard } from "@/src/components/report/ReportCards";
+import { useBestSelling } from "@/src/hooks/useAnalytics";
 import { useDashboardStats, useMotors } from "@/src/hooks/useMotors";
-import {
-  formatDateParam,
-  formatMonthParam,
-} from "@/src/services/analyticsServices";
+import { formatMonthParam } from "@/src/services/analyticsServices";
 import { DisplayData } from "@/src/types/report";
 import { formatRupiah } from "@/src/utils/formatRupiah";
-import { useFocusEffect } from "@react-navigation/native";
+import {
+  buildReportStats,
+  getSoldMotorsForPeriod,
+} from "@/src/utils/reportStats";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import {
   ArrowLeft,
   BarChart2,
@@ -31,7 +24,6 @@ import {
   Alert,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -42,9 +34,7 @@ export default function LaporanScreen() {
   const [activeTab, setActiveTab] = useState<"harian" | "mingguan" | "bulanan">(
     "bulanan",
   );
-  const [bestLimit, setBestLimit] = useState("5");
   const today = new Date();
-  const dateParam = formatDateParam(today);
   const monthParam = formatMonthParam(today);
 
   useFocusEffect(
@@ -57,56 +47,20 @@ export default function LaporanScreen() {
   const { data: motors, isLoading: motorsLoading } = useMotors();
   const { data: stats, isLoading: statsLoading } =
     useDashboardStats(monthParam);
-  const { data: dailyReport, isLoading: dailyLoading } = useDailySellingReport(
-    activeTab === "harian" ? dateParam : "",
-  );
-  const { data: weeklyReport, isLoading: weeklyLoading } =
-    useWeeklySellingReport(activeTab === "mingguan" ? dateParam : "");
-  const { data: bestSelling, isLoading: bestSellingLoading } = useBestSelling(
-    Number(bestLimit) || 5,
-  );
-
-  const isLoading =
-    motorsLoading ||
-    statsLoading ||
-    (activeTab === "harian" && dailyLoading) ||
-    (activeTab === "mingguan" && weeklyLoading) ||
-    bestSellingLoading;
+  const { data: bestSelling, isLoading: bestSellingLoading } = useBestSelling();
+  const isLoading = motorsLoading || statsLoading || bestSellingLoading;
   const hasNoMotors = !motorsLoading && (motors ?? []).length === 0;
+  const soldMotors = getSoldMotorsForPeriod(motors ?? [], activeTab, today);
 
-  let currentDisplay: DisplayData = {
-    revenue: 0,
-    sold: 0,
-    margin: 0,
-    profit: 0,
-    motors: [],
-  };
+  let currentDisplay: DisplayData = buildReportStats(soldMotors);
 
-  if (activeTab === "harian") {
-    const entries = dailyReport ?? [];
-    currentDisplay = {
-      revenue: entries.reduce((sum, e) => sum + (e.revenue ?? 0), 0),
-      sold: entries.reduce((sum, e) => sum + (e.count ?? 0), 0),
-      margin: 0,
-      profit: 0,
-      motors: entries.flatMap((e) => e.motors ?? []),
-    };
-  } else if (activeTab === "mingguan") {
-    const entries = weeklyReport ?? [];
-    currentDisplay = {
-      revenue: entries.reduce((sum, e) => sum + (e.revenue ?? 0), 0),
-      sold: entries.reduce((sum, e) => sum + (e.count ?? 0), 0),
-      margin: 0,
-      profit: 0,
-      motors: entries.flatMap((e) => e.motors ?? []),
-    };
-  } else {
+  if (activeTab === "bulanan") {
     currentDisplay = {
       revenue: stats?.currentMonthRevenue ?? 0,
       sold: stats?.sold ?? 0,
       margin: stats?.marginAverage ?? 0,
       profit: stats?.currentMonthProfit ?? 0,
-      motors: [],
+      motors: currentDisplay.motors,
     };
   }
 
@@ -313,13 +267,6 @@ export default function LaporanScreen() {
               <Text className="text-slate-800 font-bold text-base mb-3">
                 Best Selling
               </Text>
-              <TextInput
-                value={bestLimit}
-                onChangeText={setBestLimit}
-                keyboardType="numeric"
-                placeholder="Limit"
-                className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-3"
-              />
               {(bestSelling ?? []).length > 0 ? (
                 (bestSelling ?? []).map((entry, idx) => (
                   <View

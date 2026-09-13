@@ -10,6 +10,31 @@ import { getDeviceId } from "@/src/utils/getDeviceID";
 import type { AxiosResponse } from "axios";
 import axios from "axios";
 
+const PUBLIC_AUTH_PATHS = [
+  "/auth/register",
+  "/auth/login",
+  "/auth/refresh",
+  "/users/forgot-password",
+  "/users/reset-password",
+  "/users/verify-email",
+];
+
+function isPublicAuthRequest(url?: string): boolean {
+  return PUBLIC_AUTH_PATHS.some((path) => url?.startsWith(path));
+}
+
+export class ApiError extends Error {
+  readonly status?: number;
+  readonly details?: unknown;
+
+  constructor(message: string, status?: number, details?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.details = details;
+  }
+}
+
 function normalizeBaseUrl(rawUrl?: string): string | undefined {
   if (!rawUrl) return undefined;
 
@@ -29,7 +54,7 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
-  if (!config.headers.Authorization) {
+  if (!isPublicAuthRequest(config.url) && !config.headers.Authorization) {
     const token = await getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -43,8 +68,9 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     const status = error.response?.status;
+    const isPublicRequest = isPublicAuthRequest(originalRequest?.url);
 
-    if (status === 401 && !originalRequest._retry) {
+    if (status === 401 && !isPublicRequest && !originalRequest?._retry) {
       originalRequest._retry = true;
 
       try {
@@ -79,9 +105,10 @@ api.interceptors.response.use(
       }
     }
 
-    const apiError = error.response?.data?.error;
+    const responseData = error.response?.data;
+    const apiError = responseData?.error;
     let message =
-      apiError?.message ?? error.response?.data?.message ?? error.message;
+      apiError?.message ?? responseData?.message ?? error.message;
 
     if (
       typeof message === "string" &&
@@ -92,8 +119,21 @@ api.interceptors.response.use(
       message = message.join(", ");
     }
 
+    if (
+      originalRequest?.url?.startsWith("/auth/register") &&
+      status >= 500 &&
+      /registration failed/i.test(message)
+    ) {
+      message =
+        "Server gagal membuat akun. Coba gunakan email yang belum terdaftar. Jika tetap gagal, layanan registrasi backend perlu diperiksa.";
+    }
+
     return Promise.reject(
-      new Error(message || "Terjadi kesalahan pada server"),
+      new ApiError(
+        message || "Terjadi kesalahan pada server",
+        status,
+        responseData,
+      ),
     );
   },
 );

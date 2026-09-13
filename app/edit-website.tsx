@@ -1,44 +1,35 @@
+import { CatalogTemplatePreview } from "@/src/components/website/TemplatePreview";
 import {
-  CatalogTemplatePreview,
-  DummyTemplatePreview,
-} from "@/src/components/website/TemplatePreview";
-import {
-  DEFAULT_MOTOR_DISPLAY,
-  DEFAULT_WEBSITE_TEMPLATE,
-  WEBSITE_TEMPLATES,
-  WEBSITE_THEME_COLORS,
-  type WebsiteTemplate,
+    DEFAULT_MOTOR_DISPLAY,
+    DEFAULT_WEBSITE_TEMPLATE,
+    WEBSITE_TEMPLATES,
+    WEBSITE_THEME_COLORS,
+    type WebsiteTemplate,
 } from "@/src/constants/website";
 import { useAuthContext } from "@/src/context/authContext";
 import { useSubscriptionStatus } from "@/src/hooks/useSubscription";
 import { uploadFileToGCS } from "@/src/services/motorServices";
 import {
-  confirmTenantBanner,
-  fetchPublicLandingContent,
-  getTenantBannerUploadUrl,
-  updateBranding,
-  updateLandingConfig,
+    confirmTenantBanner,
+    fetchPublicLandingContent,
+    getTenantBannerUploadUrl,
+    updateBranding,
+    updateLandingConfig,
 } from "@/src/services/tenantService";
 import type { MotorDisplayConfig } from "@/src/types/tenants";
+import { prepareImageForUpload } from "@/src/utils/imageUpload";
 import * as ImagePicker from "expo-image-picker";
-import * as Location from "expo-location";
 import { router } from "expo-router";
-import {
-  ArrowLeft,
-  Camera,
-  Check,
-  MapPin,
-} from "lucide-react-native";
+import { ArrowLeft, Camera, Check } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -51,30 +42,6 @@ function toPublicAssetUrl(uploadUrl: string): string {
   } catch {
     return uploadUrl.split("?")[0];
   }
-}
-
-async function getCurrentLocation(): Promise<{
-  latitude: number;
-  longitude: number;
-}> {
-  const permission = await Location.requestForegroundPermissionsAsync();
-
-  if (!permission.granted) {
-    throw new Error(
-      permission.canAskAgain
-        ? "Izin lokasi diperlukan agar aplikasi bisa membaca koordinat perangkat."
-        : "Izin lokasi ditolak permanen. Aktifkan lokasi dari pengaturan perangkat lalu coba lagi.",
-    );
-  }
-
-  const position = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.Balanced,
-  });
-
-  return {
-    latitude: position.coords.latitude,
-    longitude: position.coords.longitude,
-  };
 }
 
 export default function EditWebsiteScreen() {
@@ -104,13 +71,13 @@ export default function EditWebsiteScreen() {
   const [address, setAddress] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
+  const [subdomain, setSubdomain] = useState("");
   const [motorDisplay, setMotorDisplay] = useState<MotorDisplayConfig>(
     DEFAULT_MOTOR_DISPLAY,
   );
-  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [isLoadingInitial, setIsLoadingInitial] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const subdomain = subscription?.subdomain ?? user?.subdomain ?? null;
+  const currentSubdomain = subscription?.subdomain ?? user?.subdomain ?? null;
 
   const activeTemplate =
     WEBSITE_TEMPLATES.find((template) => template.key === selectedTemplate) ??
@@ -130,7 +97,8 @@ export default function EditWebsiteScreen() {
       mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [16, 9],
-      quality: 0.8,
+      // Keep the edit preview sharp; the upload path performs one WebP encode.
+      quality: 1,
     });
 
     if (!result.canceled) {
@@ -139,24 +107,48 @@ export default function EditWebsiteScreen() {
     }
   };
 
+  // Initialize subdomain from current subscription/user
+  useEffect(() => {
+    if (currentSubdomain && !subdomain) {
+      setSubdomain(currentSubdomain);
+    }
+  }, [currentSubdomain, subdomain]);
+
   useEffect(() => {
     let active = true;
 
     async function loadLandingContent() {
-      if (!subdomain) {
+      if (!currentSubdomain) {
         setIsLoadingInitial(false);
         return;
       }
 
       try {
-        const response = await fetchPublicLandingContent(subdomain);
+        const response = await fetchPublicLandingContent(currentSubdomain);
         if (!active) return;
+
+        const savedTemplateKey =
+          response.tenant.templateKey ?? response.content.templateKey;
+        const savedTemplate = WEBSITE_TEMPLATES.find(
+          (template) => template.key === savedTemplateKey,
+        );
+
+        if (savedTemplate) {
+          setSelectedTemplate(savedTemplate.key);
+          setBadgeText(savedTemplate.badgeText);
+          setTitle(savedTemplate.title);
+          setSubtitle(savedTemplate.subtitle);
+          setShowAddress(savedTemplate.showAddress);
+        }
 
         if (response.tenant.primaryColor) {
           setBgColor(response.tenant.primaryColor);
         }
         if (response.tenant.bannerUrl) {
           setHeroImage(response.tenant.bannerUrl);
+        }
+        if (response.tenant.subdomain) {
+          setSubdomain(response.tenant.subdomain);
         }
 
         setWhatsappNumber(response.content.whatsappNumber ?? "");
@@ -169,7 +161,9 @@ export default function EditWebsiteScreen() {
         setLongitude(
           location?.longitude != null ? String(location.longitude) : "",
         );
-        setShowAddress(Boolean(location?.address));
+        if (!savedTemplate) {
+          setShowAddress(Boolean(location?.address));
+        }
         setMotorDisplay(response.content.motorDisplay ?? DEFAULT_MOTOR_DISPLAY);
       } catch (error) {
         if (!active) return;
@@ -190,26 +184,7 @@ export default function EditWebsiteScreen() {
     return () => {
       active = false;
     };
-  }, [subdomain]);
-
-  const handleAutoLocation = async () => {
-    setIsFetchingLocation(true);
-    try {
-      const position = await getCurrentLocation();
-      setLatitude(String(position.latitude));
-      setLongitude(String(position.longitude));
-      Alert.alert("Berhasil", "Lokasi perangkat berhasil diambil.");
-    } catch (error) {
-      Alert.alert(
-        "Gagal",
-        error instanceof Error
-          ? error.message
-          : "Tidak bisa mengambil lokasi otomatis.",
-      );
-    } finally {
-      setIsFetchingLocation(false);
-    }
-  };
+  }, [currentSubdomain]);
 
   const handleSave = async () => {
     if (!subscription?.isPremium) {
@@ -220,10 +195,29 @@ export default function EditWebsiteScreen() {
       return;
     }
 
-    if (!subdomain) {
+    // Validasi subdomain
+    if (!subdomain || subdomain.trim() === "") {
+      Alert.alert("Data belum lengkap", "Subdomain showroom harus diisi.");
+      return;
+    }
+
+    const subdomainTrimmed = subdomain.trim();
+
+    // Validasi panjang subdomain
+    if (subdomainTrimmed.length < 3 || subdomainTrimmed.length > 63) {
       Alert.alert(
-        "Gagal",
-        "Subdomain showroom belum tersedia, jadi konfigurasi website belum bisa disimpan.",
+        "Subdomain tidak valid",
+        "Subdomain harus memiliki panjang 3-63 karakter.",
+      );
+      return;
+    }
+
+    // Validasi format subdomain
+    const subdomainRegex = /^(?!-)(?!.*--)[a-z0-9-]+(?<!-)$/;
+    if (!subdomainRegex.test(subdomainTrimmed)) {
+      Alert.alert(
+        "Subdomain tidak valid",
+        "Subdomain hanya boleh menggunakan huruf kecil, angka, dan tanda hubung. Tidak boleh diawali/diakhiri dengan tanda hubung atau menggunakan tanda hubung berurutan.",
       );
       return;
     }
@@ -253,14 +247,18 @@ export default function EditWebsiteScreen() {
     try {
       setIsSaving(true);
 
-      await updateBranding({ primaryColor: bgColor });
-
       const hasLocationPayload =
         city.trim() !== "" ||
         address.trim() !== "" ||
         (latitudeValue != null && longitudeValue != null);
 
+      await updateBranding({
+        primaryColor: bgColor,
+      });
+
       await updateLandingConfig({
+        templateKey: selectedTemplate,
+        subdomain: subdomainTrimmed,
         ...(whatsappNumber.trim()
           ? { whatsappNumber: whatsappNumber.trim() }
           : {}),
@@ -282,22 +280,29 @@ export default function EditWebsiteScreen() {
       });
 
       if (heroImageAsset) {
-        const mimeType = heroImageAsset.mimeType ?? "image/jpeg";
-        const fileName = heroImageAsset.fileName ?? `banner-${Date.now()}.jpg`;
+        const preparedBanner = await prepareImageForUpload(heroImageAsset, {
+          compress: 0.8,
+          maxWidth: 1920,
+          fallbackName: `banner-${Date.now()}`,
+        });
         const upload = await getTenantBannerUploadUrl({
-          fileName,
-          mimeType,
+          fileName: preparedBanner.fileName,
+          mimeType: preparedBanner.mimeType,
         });
 
-        await uploadFileToGCS(upload.uploadUrl, heroImageAsset.uri, mimeType);
+        await uploadFileToGCS(
+          upload.uploadUrl,
+          preparedBanner.uri,
+          preparedBanner.mimeType,
+        );
 
         const bannerUrl = toPublicAssetUrl(upload.uploadUrl);
         await confirmTenantBanner({
           storageKey: upload.filePath,
           url: bannerUrl,
-          width: heroImageAsset.width,
-          height: heroImageAsset.height,
-          size: heroImageAsset.fileSize ?? undefined,
+          width: preparedBanner.width,
+          height: preparedBanner.height,
+          size: preparedBanner.fileSize,
         });
 
         setHeroImage(bannerUrl);
@@ -381,18 +386,17 @@ export default function EditWebsiteScreen() {
                   }`}
                 >
                   <View className="rounded-[22px] overflow-hidden">
-                    {template.isDummy ? (
-                      <DummyTemplatePreview compact />
-                    ) : (
-                      <CatalogTemplatePreview
-                        badgeText={template.badgeText}
-                        color={template.primaryColor}
-                        heroImage={heroImage}
-                        subtitle={template.subtitle}
-                        title={template.title}
-                        compact
-                      />
-                    )}
+                    <CatalogTemplatePreview
+                      badgeText={template.badgeText}
+                      color={template.primaryColor}
+                      heroImage={heroImage}
+                      subtitle={template.subtitle}
+                      title={template.title}
+                      variant={
+                        template.key === "template-two" ? "list" : "hero"
+                      }
+                      compact
+                    />
                   </View>
 
                   <View className="px-1 pt-4 pb-2">
@@ -445,18 +449,15 @@ export default function EditWebsiteScreen() {
           </Text>
 
           <View className="rounded-3xl overflow-hidden shadow-lg border border-slate-100">
-            {activeTemplate.isDummy ? (
-              <DummyTemplatePreview />
-            ) : (
-              <CatalogTemplatePreview
-                address={showAddress ? address : undefined}
-                badgeText={badgeText}
-                color={bgColor}
-                heroImage={heroImage}
-                subtitle={subtitle}
-                title={title}
-              />
-            )}
+            <CatalogTemplatePreview
+              address={showAddress ? address : undefined}
+              badgeText={badgeText}
+              color={bgColor}
+              heroImage={heroImage}
+              subtitle={subtitle}
+              title={title}
+              variant={selectedTemplate === "template-two" ? "list" : "hero"}
+            />
           </View>
         </View>
 
@@ -499,6 +500,30 @@ export default function EditWebsiteScreen() {
           </TouchableOpacity>
 
           <View className="space-y-4">
+            <View>
+              <Text className="text-sm font-bold text-slate-600 mb-1.5">
+                Subdomain Showroom
+              </Text>
+              <View className="flex-row items-center">
+                <TextInput
+                  value={subdomain}
+                  onChangeText={(text) =>
+                    setSubdomain(text.toLowerCase().replace(/[^a-z0-9-]/g, ""))
+                  }
+                  placeholder="namatoko"
+                  autoCapitalize="none"
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 font-medium"
+                />
+                <Text className="text-slate-600 font-medium ml-2">
+                  .otokas.co.id
+                </Text>
+              </View>
+              <Text className="text-slate-400 text-xs mt-2 leading-5">
+                Alamat website katalog publik showroom Anda. Gunakan huruf
+                kecil, angka, dan tanda hubung.
+              </Text>
+            </View>
+
             <View>
               <Text className="text-sm font-bold text-slate-600 mb-1.5">
                 Nomor WhatsApp Dealer
@@ -553,140 +578,6 @@ export default function EditWebsiteScreen() {
                 style={{ textAlignVertical: "top" }}
                 className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 font-medium h-24"
               />
-            </View>
-
-            <View className="mt-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-              <Text className="font-bold text-slate-800 mb-1">
-                Tampilan Katalog Motor
-              </Text>
-              <Text className="text-xs text-slate-500 mb-3 leading-5">
-                Atur informasi unit motor apa saja yang tampil di website
-                katalog publik showroom Anda.
-              </Text>
-
-              {[
-                {
-                  key: "showPrice",
-                  label: "Tampilkan Harga",
-                  description: "Harga jual akan terlihat di kartu motor.",
-                },
-                {
-                  key: "showYear",
-                  label: "Tampilkan Tahun",
-                  description: "Tahun motor akan muncul di listing publik.",
-                },
-                {
-                  key: "showStatus",
-                  label: "Tampilkan Status",
-                  description: "Status stok seperti tersedia atau terjual.",
-                },
-                {
-                  key: "showKilometer",
-                  label: "Tampilkan Kilometer",
-                  description: "Odometer bisa ditampilkan untuk pembeli.",
-                },
-                {
-                  key: "showTax",
-                  label: "Tampilkan Pajak",
-                  description: "Status pajak unit akan ikut ditampilkan.",
-                },
-              ].map((item) => (
-                <View
-                  key={item.key}
-                  className="flex-row items-center justify-between py-3 border-b border-slate-200 last:border-b-0"
-                >
-                  <View className="flex-1 pr-4">
-                    <Text className="font-semibold text-slate-800">
-                      {item.label}
-                    </Text>
-                    <Text className="text-xs text-slate-500 mt-1 leading-5">
-                      {item.description}
-                    </Text>
-                  </View>
-                  <Switch
-                    value={motorDisplay[item.key as keyof MotorDisplayConfig]}
-                    onValueChange={(value) =>
-                      setMotorDisplay((prev) => ({
-                        ...prev,
-                        [item.key]: value,
-                      }))
-                    }
-                    trackColor={{ false: "#cbd5e1", true: "#f59e0b" }}
-                    thumbColor="#ffffff"
-                  />
-                </View>
-              ))}
-            </View>
-
-            <View className="flex-row items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-100 mt-4">
-              <View>
-                <Text className="font-bold text-slate-800">
-                  Tampilkan Alamat
-                </Text>
-                <Text
-                  className="text-xs text-slate-500 mt-0.5 max-w-[200px]"
-                  numberOfLines={1}
-                >
-                  {address || "Alamat showroom belum diisi"}
-                </Text>
-              </View>
-              <Switch
-                value={showAddress}
-                onValueChange={setShowAddress}
-                trackColor={{ false: "#cbd5e1", true: "#f59e0b" }}
-                thumbColor="#ffffff"
-              />
-            </View>
-
-            <View className="mt-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-              <Text className="font-bold text-slate-800 mb-1">
-                Data Lokasi Showroom
-              </Text>
-              <Text className="text-xs text-slate-500 mb-3 leading-5">
-                Isi kota dan alamat showroom. Jika perlu, Anda bisa bantu
-                lengkapi koordinat otomatis dari perangkat.
-              </Text>
-              <TextInput
-                value={city}
-                onChangeText={setCity}
-                placeholder="Kota showroom"
-                className="bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-800 mb-3"
-              />
-              <TextInput
-                value={address}
-                onChangeText={setAddress}
-                placeholder="Alamat showroom"
-                multiline
-                className="bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-800"
-              />
-              <TouchableOpacity
-                onPress={handleAutoLocation}
-                disabled={isFetchingLocation}
-                className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex-row items-center justify-center gap-2 mt-3"
-              >
-                <MapPin size={16} color="#64748b" />
-                <Text className="text-slate-700 font-semibold">
-                  {isFetchingLocation
-                    ? "Mengambil lokasi..."
-                    : "Ambil Lokasi HP"}
-                </Text>
-              </TouchableOpacity>
-              <View className="flex-row gap-3 mt-3">
-                <TextInput
-                  value={latitude}
-                  onChangeText={setLatitude}
-                  placeholder="Latitude"
-                  keyboardType="numeric"
-                  className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-800"
-                />
-                <TextInput
-                  value={longitude}
-                  onChangeText={setLongitude}
-                  placeholder="Longitude"
-                  keyboardType="numeric"
-                  className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-800"
-                />
-              </View>
             </View>
           </View>
         </View>

@@ -1,13 +1,13 @@
 import { api, extractData } from "@/src/lib/api";
 import type {
-  BannerUploadUrlResponse,
-  ConfirmTenantBannerPayload,
-  CreateTenantPayload,
-  LandingConfigResponse,
-  PublicTenantMotorsResponse,
-  Tenant,
-  UpdateBrandingPayload,
-  UpdateLandingConfigPayload,
+    BannerUploadUrlResponse,
+    ConfirmTenantBannerPayload,
+    CreateTenantPayload,
+    LandingConfigResponse,
+    PublicTenantMotorsResponse,
+    Tenant,
+    UpdateBrandingPayload,
+    UpdateLandingConfigPayload,
 } from "@/src/types/tenants";
 
 // ── Create tenant

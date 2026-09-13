@@ -41,6 +41,7 @@ export async function register(
   const deviceId = await getDeviceId();
   const { data } = await api.post<RegisterResponse>("/auth/register", {
     ...payload,
+    email: payload.email.trim().toLowerCase(),
     deviceId,
   });
   return data;
@@ -51,6 +52,7 @@ export async function login(payload: LoginPayload): Promise<TokenResponse> {
   const deviceId = await getDeviceId();
   const { data } = await api.post<TokenResponse>("/auth/login", {
     ...payload,
+    email: payload.email.trim().toLowerCase(),
     deviceId,
   });
 
