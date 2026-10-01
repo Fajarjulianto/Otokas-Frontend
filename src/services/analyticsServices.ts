@@ -15,7 +15,7 @@ export function formatMonthParam(date: Date): string {
   return `${month}-${date.getFullYear()}`;
 }
 
-// ── Daily Selling Report (README §5) ──
+// ── Daily Selling Report
 export async function fetchDailySellingReport(
   date: string,
 ): Promise<SellingReportEntry[]> {
@@ -26,7 +26,7 @@ export async function fetchDailySellingReport(
   return data.data ?? [];
 }
 
-// ── Weekly Selling Report (README §5) ──
+// ── Weekly Selling Report
 export async function fetchWeeklySellingReport(
   date: string,
 ): Promise<SellingReportEntry[]> {
@@ -37,7 +37,7 @@ export async function fetchWeeklySellingReport(
   return data.data ?? [];
 }
 
-// ── Incoming Stock Report (README §5) ──
+// ── Incoming Stock Report
 export async function fetchIncomingStockReport(
   date: string,
 ): Promise<IncomingStockEntry[]> {
@@ -48,10 +48,8 @@ export async function fetchIncomingStockReport(
   return data.data ?? [];
 }
 
-// ── Best-selling motors (README §5) ──
-export async function fetchBestSelling(
-  limit = 5,
-): Promise<BestSellingEntry[]> {
+// ── Best-selling motors
+export async function fetchBestSelling(limit = 5): Promise<BestSellingEntry[]> {
   const { data } = await api.get<{ data: BestSellingEntry[] }>(
     "/dashboard/best-selling",
     { params: { limit } },

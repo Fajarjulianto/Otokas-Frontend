@@ -1,4 +1,4 @@
-// User types (see README §4).
+// User types
 
 export interface UserProfile {
   id: string;
@@ -11,14 +11,14 @@ export interface UserProfile {
   isPremium?: boolean;
   subdomain?: string;
   fullDomain?: string;
-  phoneNumber?: string;
-  address?: string;
+  phoneNumber?: string | null;
+  address?: string | null;
 }
 
 export type User = UserProfile;
 
 export interface UpdateProfilePayload {
   dealerName?: string;
-  phoneNumber?: string;
-  address?: string;
+  phoneNumber?: string | null;
+  address?: string | null;
 }

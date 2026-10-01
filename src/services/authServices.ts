@@ -1,4 +1,5 @@
 import { api, extractData } from "@/src/lib/api";
+import { logLoginStage } from "@/src/lib/networkDiagnostics";
 import { getRefreshToken } from "@/src/lib/secureToken";
 import { getDeviceId } from "@/src/utils/getDeviceID";
 
@@ -49,17 +50,20 @@ export async function register(
 
 // ── Login ──
 export async function login(payload: LoginPayload): Promise<TokenResponse> {
+  logLoginStage("device-id:start");
   const deviceId = await getDeviceId();
+  logLoginStage("device-id:ready; login:calling-axios");
   const { data } = await api.post<TokenResponse>("/auth/login", {
     ...payload,
     email: payload.email.trim().toLowerCase(),
     deviceId,
   });
 
+  logLoginStage("login:http-success");
   return data;
 }
 
-// ── Logout (README §1: DELETE /auth/logout with refresh_token body) ──
+// ── Logout
 export async function logout(): Promise<void> {
   const refresh_token = await getRefreshToken();
   await api.delete("/auth/logout", {
@@ -67,7 +71,7 @@ export async function logout(): Promise<void> {
   });
 }
 
-// ── Refresh Token (README §1: POST /auth/refresh with refresh_token + deviceId) ──
+// ── Refresh Token
 export async function refreshToken(): Promise<TokenResponse> {
   const deviceId = await getDeviceId();
   const refresh_token = await getRefreshToken();

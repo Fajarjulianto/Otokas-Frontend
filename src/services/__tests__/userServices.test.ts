@@ -39,7 +39,7 @@ describe("userServices", () => {
       (extractData as jest.Mock).mockReturnValue(profile);
 
       const result = await fetchProfile();
-      expect(api.get).toHaveBeenCalledWith("/users/profile");
+      expect(api.get).toHaveBeenCalledWith("/users/profile", undefined);
       expect(result).toEqual(profile);
     });
 
@@ -48,7 +48,7 @@ describe("userServices", () => {
       (extractData as jest.Mock).mockReturnValue(null);
 
       await expect(fetchProfile()).rejects.toThrow(
-        "Gagal mengambil data profil dari server."
+        "Gagal mengambil data profil dari server.",
       );
     });
 
@@ -57,7 +57,7 @@ describe("userServices", () => {
       (extractData as jest.Mock).mockReturnValue(undefined);
 
       await expect(fetchProfile()).rejects.toThrow(
-        "Gagal mengambil data profil dari server."
+        "Gagal mengambil data profil dari server.",
       );
     });
   });
@@ -102,9 +102,10 @@ describe("userServices", () => {
         message: "Password updated",
       });
 
-      const result = await changePassword("NewP@ss123");
+      const result = await changePassword(" NewP@ss123 ", "OldP@ss123");
       expect(api.post).toHaveBeenCalledWith("/users/change-password", {
-        newPassword: "NewP@ss123",
+        newPassword: " NewP@ss123 ",
+        currentPassword: "OldP@ss123",
       });
       expect(result).toEqual({ message: "Password updated" });
     });

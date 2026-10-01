@@ -97,6 +97,7 @@ export default function RegisterPage() {
       <AuthField
         label="Nama Dealer / Showroom"
         placeholder="Nama showroom Anda"
+        placeholderTextColor="#000000"
         value={dealerName}
         onChangeText={(text) => {
           setDealerName(text);
@@ -109,6 +110,7 @@ export default function RegisterPage() {
       <AuthField
         label="Email"
         placeholder="dealer@email.com"
+        placeholderTextColor="#000000"
         value={email}
         onChangeText={(text) => {
           setEmail(text);
@@ -128,6 +130,7 @@ export default function RegisterPage() {
       <PasswordField
         label="Password"
         placeholder="Minimal 8 karakter"
+        placeholderTextColor="#000000"
         value={password}
         onChangeText={setPassword}
         visible={showPassword}
@@ -185,6 +188,7 @@ export default function RegisterPage() {
       <PasswordField
         label="Konfirmasi Password"
         placeholder="Ulangi password"
+        placeholderTextColor="#000000"
         value={confirmPassword}
         onChangeText={setConfirmPassword}
         visible={showConfirmPassword}

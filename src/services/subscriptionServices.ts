@@ -30,7 +30,10 @@ function decorateStatus(
 ): SubscriptionStatus {
   const tier = (raw?.tier ?? "FREE") as SubscriptionTier;
   const status = (raw?.status ?? "INACTIVE") as SubscriptionState;
-  const isPremium = tier === "PREMIUM" && status === "ACTIVE";
+  const isPremium =
+    tier === "PREMIUM" &&
+    status === "ACTIVE" &&
+    (!raw?.expiresAt || new Date(raw.expiresAt).getTime() > Date.now());
   return {
     tier,
     status,
@@ -51,8 +54,10 @@ export async function checkoutSubscription(
 }
 
 // ── Get Subscription Status
-export async function fetchSubscriptionStatus(): Promise<SubscriptionStatus> {
-  const response = await api.get("/subscription/status");
+export async function fetchSubscriptionStatus(
+  signal?: AbortSignal,
+): Promise<SubscriptionStatus> {
+  const response = await api.get("/subscription/status", { signal });
   const data = extractData<Partial<SubscriptionStatus>>(response);
 
   if (!data || Object.keys(data).length === 0) {

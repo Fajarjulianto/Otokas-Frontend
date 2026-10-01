@@ -1,9 +1,14 @@
+import { useAuthContext } from "@/src/context/authContext";
 import { SectionCard } from "@/src/components/ui/SectionCard";
-import { useChangePassword, useProfile, useUpdateProfile } from "@/src/hooks/useUser";
+import {
+  useChangePassword,
+  useProfile,
+  useUpdateProfile,
+} from "@/src/hooks/useUser";
 import { isStrongPassword } from "@/src/utils/validation";
 import { Stack, useRouter } from "expo-router";
 import { ArrowLeft, Lock, MapPin, Phone, Store } from "lucide-react-native";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,29 +24,46 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function EditProfileScreen() {
   const router = useRouter();
-  const { data: profile, isLoading } = useProfile();
+  const {
+    data: profile,
+    isLoading,
+    error: profileError,
+    refetch,
+  } = useProfile();
+  const { signOut } = useAuthContext();
+  const dirty = useRef(false);
   const updateProfileMutation = useUpdateProfile();
   const changePasswordMutation = useChangePassword();
 
   const [dealerName, setDealerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [address, setAddress] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
   useEffect(() => {
+    if (!profile || dirty.current) return;
     setDealerName(profile?.dealerName ?? "");
     setPhoneNumber(profile?.phoneNumber ?? "");
     setAddress(profile?.address ?? "");
-  }, [profile?.address, profile?.dealerName, profile?.phoneNumber]);
+  }, [profile]);
 
   const isPasswordValid = useMemo(
     () => isStrongPassword(newPassword),
     [newPassword],
   );
-  const passwordsMatch = confirmPassword.length > 0 && confirmPassword === newPassword;
-  const canSaveProfile = dealerName.trim().length > 0 && !updateProfileMutation.isPending;
+  const passwordsMatch =
+    confirmPassword.length > 0 && confirmPassword === newPassword;
+  const phoneValid =
+    !phoneNumber.trim() || /^\+?[0-9]{8,15}$/.test(phoneNumber.trim());
+  const canSaveProfile =
+    !!profile &&
+    dealerName.trim().length > 0 &&
+    phoneValid &&
+    !updateProfileMutation.isPending;
   const canSavePassword =
+    currentPassword.length > 0 &&
     isPasswordValid &&
     passwordsMatch &&
     !changePasswordMutation.isPending;
@@ -52,8 +74,8 @@ export default function EditProfileScreen() {
     try {
       await updateProfileMutation.mutateAsync({
         dealerName: dealerName.trim(),
-        phoneNumber: phoneNumber.trim() || undefined,
-        address: address.trim() || undefined,
+        phoneNumber: phoneNumber.trim() || null,
+        address: address.trim() || null,
       });
       Alert.alert("Berhasil", "Data showroom berhasil diperbarui.", [
         { text: "OK", onPress: () => router.back() },
@@ -71,11 +93,24 @@ export default function EditProfileScreen() {
 
     try {
       await changePasswordMutation.mutateAsync({
-        newPassword: newPassword.trim(),
+        newPassword,
+        currentPassword,
       });
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      Alert.alert("Berhasil", "Password akun berhasil diperbarui.");
+      Alert.alert(
+        "Berhasil",
+        "Password akun berhasil diperbarui. Silakan masuk kembali.",
+        [
+          {
+            text: "Masuk kembali",
+            onPress: () => {
+              void signOut();
+            },
+          },
+        ],
+      );
     } catch (error) {
       Alert.alert(
         "Gagal",
@@ -91,6 +126,28 @@ export default function EditProfileScreen() {
       </View>
     );
   }
+
+  if (!profile)
+    return (
+      <SafeAreaView className="flex-1 bg-slate-50 p-6 justify-center">
+        <Text className="text-lg font-bold mb-3">
+          Profil belum dapat dimuat
+        </Text>
+        <Text className="mb-4">
+          {profileError?.message ??
+            "Periksa koneksi atau masuk kembali untuk melanjutkan."}
+        </Text>
+        <TouchableOpacity
+          onPress={() => void refetch()}
+          className="bg-blue-800 p-4 rounded-xl mb-3"
+        >
+          <Text className="text-white text-center">Coba Lagi</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text className="text-center">Kembali</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
@@ -132,7 +189,11 @@ export default function EditProfileScreen() {
               </View>
               <TextInput
                 value={dealerName}
-                onChangeText={setDealerName}
+                onChangeText={(text) => {
+                  dirty.current = true;
+                  setDealerName(text);
+                }}
+                maxLength={160}
                 placeholder="Contoh: Maju Motor"
                 placeholderTextColor="#94a3b8"
                 autoCapitalize="words"
@@ -150,7 +211,10 @@ export default function EditProfileScreen() {
               </View>
               <TextInput
                 value={phoneNumber}
-                onChangeText={(text) => setPhoneNumber(text.replace(/[^\d+]/g, ""))}
+                onChangeText={(text) => {
+                  dirty.current = true;
+                  setPhoneNumber(text.replace(/[^\d+]/g, ""));
+                }}
                 placeholder="Contoh: 081234567890"
                 placeholderTextColor="#94a3b8"
                 keyboardType="phone-pad"
@@ -168,7 +232,11 @@ export default function EditProfileScreen() {
               </View>
               <TextInput
                 value={address}
-                onChangeText={setAddress}
+                onChangeText={(text) => {
+                  dirty.current = true;
+                  setAddress(text);
+                }}
+                maxLength={2000}
                 placeholder="Contoh: Jl. Raya No. 123"
                 placeholderTextColor="#94a3b8"
                 multiline
@@ -199,10 +267,32 @@ export default function EditProfileScreen() {
             </TouchableOpacity>
           </SectionCard>
 
+          {!phoneValid && (
+            <Text className="text-red-600 mb-4">
+              Nomor WhatsApp harus berisi 8–15 angka, dengan tanda + opsional di
+              awal.
+            </Text>
+          )}
+
           <SectionCard
             title="Keamanan Akun"
             subtitle="Ganti password untuk menjaga akun tetap aman."
           >
+            <View className="mb-4">
+              <Text className="text-slate-700 font-semibold mb-2">
+                Password Saat Ini
+              </Text>
+              <TextInput
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                placeholder="Masukkan password saat ini"
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!changePasswordMutation.isPending}
+                className="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-slate-900 text-base"
+              />
+            </View>
             <View className="mb-4">
               <View className="flex-row items-center gap-2 mb-2">
                 <Lock size={16} color="#475569" />
@@ -216,6 +306,8 @@ export default function EditProfileScreen() {
                 placeholder="Masukkan password baru"
                 placeholderTextColor="#94a3b8"
                 secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
                 editable={!changePasswordMutation.isPending}
                 className="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-slate-900 text-base"
               />
@@ -243,6 +335,8 @@ export default function EditProfileScreen() {
                 placeholder="Ulangi password baru"
                 placeholderTextColor="#94a3b8"
                 secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
                 editable={!changePasswordMutation.isPending}
                 className="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-slate-900 text-base"
               />

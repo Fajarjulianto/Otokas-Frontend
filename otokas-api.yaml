@@ -171,6 +171,35 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /api/v1/users/change-password:
+    post:
+      tags: [Users]
+      summary: Change password and revoke refresh tokens
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                  minLength: 1
+                newPassword:
+                  type: string
+                  minLength: 8
+                  maxLength: 72
+                  description: Must contain an uppercase letter and a digit; at most 72 UTF-8 bytes.
+      responses:
+        "200":
+          description: Password changed. Sign in again.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/users/request-password-reset:
     post:
       tags:
@@ -1255,6 +1284,10 @@ components:
           format: email
         dealerName:
           type: string
+        address:
+          type: string
+          nullable: true
+          maxLength: 2000
         phoneNumber:
           type: string
           nullable: true
@@ -1271,7 +1304,13 @@ components:
       properties:
         dealerName:
           type: string
+          minLength: 1
+          maxLength: 160
           example: John Motor Baru
+        address:
+          type: string
+          nullable: true
+          maxLength: 2000
         phoneNumber:
           type: string
           nullable: true

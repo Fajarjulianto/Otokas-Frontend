@@ -3,6 +3,7 @@ import {
   DashboardMotorItem,
   DashboardStatCard,
 } from "@/src/components/dashboard/DashboardCards";
+import { useAuthContext } from "@/src/context/authContext";
 import { useDashboardStats, useMotors } from "@/src/hooks/useMotors";
 import { useSubscriptionStatus } from "@/src/hooks/useSubscription";
 import { useProfile } from "@/src/hooks/useUser";
@@ -28,7 +29,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function BerandaPage() {
   const router = useRouter();
-  const { data: profile } = useProfile();
+  const { user } = useAuthContext();
+  const {
+    data: profile,
+    error: profileError,
+    isLoading: profileLoading,
+    refetch: reloadProfile,
+  } = useProfile();
+  const showroomName =
+    profile?.dealerName?.trim() ||
+    user?.dealerName?.trim() ||
+    (profileLoading ? "Memuat nama showroom…" : "Nama showroom belum tersedia");
   const { data: subscription } = useSubscriptionStatus();
   const currentMonthParam = formatMonthParam(new Date());
   const { data: stats, isLoading: statsLoading } =
@@ -52,8 +63,19 @@ export default function BerandaPage() {
             <View className="flex-1">
               <Text className="text-blue-200 text-xl">Selamat datang</Text>
               <Text className="text-white text-4xl font-bold mt-0.5">
-                {profile?.dealerName || "Showroom"}
+                {showroomName}
               </Text>
+              {profileError && (
+                <TouchableOpacity
+                  onPress={() => void reloadProfile()}
+                  className="mt-3"
+                >
+                  <Text className="text-blue-100">{profileError.message}</Text>
+                  <Text className="text-white underline mt-1">
+                    Muat ulang profil
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -169,8 +191,8 @@ export default function BerandaPage() {
                     Tidak Ada Motor Tersedia
                   </Text>
                   <Text className="text-slate-400 text-sm text-center mt-1.5 leading-5">
-                    Semua motor telah terjual. Tambahkan unit baru untuk
-                    mengisi stok showroom.
+                    Semua motor telah terjual. Tambahkan unit baru untuk mengisi
+                    stok showroom.
                   </Text>
                   <TouchableOpacity
                     onPress={() => router.push("/(tabs)/tambah")}

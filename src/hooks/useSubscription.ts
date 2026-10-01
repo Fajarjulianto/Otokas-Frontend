@@ -10,9 +10,13 @@ export const subscriptionKeys = {
 };
 
 export function useSubscriptionStatus() {
+  const { user } = useAuthContext();
   return useQuery({
     queryKey: subscriptionKeys.status,
-    queryFn: fetchSubscriptionStatus,
+    queryFn: ({ signal }) => fetchSubscriptionStatus(signal),
+    enabled: !!user,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 
@@ -27,7 +31,10 @@ export function useRefreshSubscription() {
   const { updateUser } = useAuthContext();
 
   return useMutation({
-    mutationFn: fetchSubscriptionStatus,
+    mutationFn: async () => {
+      await queryClient.cancelQueries({ queryKey: subscriptionKeys.status });
+      return fetchSubscriptionStatus();
+    },
     onSuccess: async (status) => {
       queryClient.setQueryData(subscriptionKeys.status, status);
       await updateUser({ isPremium: status.isPremium });

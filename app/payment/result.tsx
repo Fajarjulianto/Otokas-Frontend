@@ -1,3 +1,4 @@
+import { paymentState, usePaymentPolling } from "@/src/hooks/usePaymentPolling";
 import { useSubscriptionStatus } from "@/src/hooks/useSubscription";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -9,8 +10,14 @@ import {
   Home,
   RefreshCw,
 } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import React from "react";
+import {
+  ActivityIndicator,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type PaymentStatus = "success" | "pending" | "failed";
@@ -75,9 +82,10 @@ function DetailRow({
 export default function PaymentResultScreen() {
   const router = useRouter();
   const { data: subscription, isLoading, refetch } = useSubscriptionStatus();
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [timedOut, setTimedOut] = useState(false);
+  const { timedOut, retry } = usePaymentPolling(
+    subscription?.isPremium ?? false,
+    refetch,
+  );
 
   // Expo Router: /payment/result?status=success&orderId=ORD-xxx&amount=200000
   const {
@@ -92,34 +100,11 @@ export default function PaymentResultScreen() {
     paymentType: string;
   }>();
 
-  useEffect(() => {
-    if (subscription?.isPremium) {
-      setTimedOut(false);
-      if (pollRef.current) clearInterval(pollRef.current);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      return;
-    }
-
-    pollRef.current = setInterval(() => {
-      void refetch();
-    }, 4000);
-    timeoutRef.current = setTimeout(() => {
-      setTimedOut(true);
-      if (pollRef.current) clearInterval(pollRef.current);
-    }, 90000);
-
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, [refetch, subscription?.isPremium]);
-
-  const backendStatus: PaymentStatus =
-    subscription?.isPremium ? "success" : "pending";
-  const effectiveStatus =
-    backendStatus === "success" ? "success" : (status as PaymentStatus);
-  const config =
-    STATUS_CONFIG[effectiveStatus] ?? STATUS_CONFIG.pending;
+  const effectiveStatus = paymentState(
+    subscription?.isPremium ?? false,
+    status,
+  );
+  const config = STATUS_CONFIG[effectiveStatus] ?? STATUS_CONFIG.pending;
   const Icon = config.icon;
   const formattedAmount =
     amount !== "-" ? `Rp ${Number(amount).toLocaleString("id-ID")}` : "-";
@@ -232,14 +217,13 @@ export default function PaymentResultScreen() {
               {timedOut && (
                 <TouchableOpacity
                   onPress={() => {
-                    setTimedOut(false);
-                    void refetch();
+                    retry();
                   }}
                   className="mt-3 w-full bg-white border border-slate-200 py-4 rounded-2xl flex-row items-center justify-center gap-2"
                 >
                   <RefreshCw size={18} color="#334155" strokeWidth={2.5} />
                   <Text className="text-slate-700 font-bold text-base">
-                    Muat Ulang Status
+                    Cek Lagi
                   </Text>
                 </TouchableOpacity>
               )}

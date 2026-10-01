@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import type { UpdateProfilePayload, UserProfile } from "@/src/types/user";
 import { useAuthContext } from "@/src/context/authContext";
 import {
   changePassword,
@@ -6,7 +8,6 @@ import {
   resetPassword,
   updateProfile,
 } from "@/src/services/userServices";
-import type { UpdateProfilePayload } from "@/src/types/user";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export const userKeys = {
@@ -14,10 +15,43 @@ export const userKeys = {
 };
 
 export function useProfile() {
-  return useQuery({
+  const queryClient = useQueryClient();
+  const { user, updateUser } = useAuthContext();
+  const query = useQuery({
+    enabled: !!user,
+    staleTime: 0,
+    refetchOnMount: "always",
     queryKey: userKeys.profile,
-    queryFn: fetchProfile,
+    queryFn: async ({ signal }) => {
+      const profile = await fetchProfile({ signal });
+      const status = queryClient.getQueryData<{ isPremium: boolean }>([
+        "subscription",
+        "status",
+      ]);
+      return status ? { ...profile, isPremium: status.isPremium } : profile;
+    },
   });
+  useEffect(() => {
+    if (!query.data || !user) return;
+    const updates = {
+      dealerName: query.data.dealerName,
+      phoneNumber: query.data.phoneNumber ?? "",
+      address: query.data.address ?? "",
+      ...(query.data.subdomain !== undefined
+        ? { subdomain: query.data.subdomain }
+        : {}),
+      ...(query.data.fullDomain !== undefined
+        ? { fullDomain: query.data.fullDomain }
+        : {}),
+    };
+    if (
+      Object.entries(updates).some(
+        ([key, value]) => user[key as keyof typeof user] !== value,
+      )
+    )
+      void updateUser(updates);
+  }, [query.data, updateUser, user]);
+  return query;
 }
 
 export function useUpdateProfile() {
@@ -29,14 +63,19 @@ export function useUpdateProfile() {
       return await updateProfile(payload);
     },
     onSuccess: async (updatedData) => {
-      queryClient.invalidateQueries({ queryKey: userKeys.profile });
+      await queryClient.cancelQueries({ queryKey: userKeys.profile });
+      queryClient.setQueryData<UserProfile>(userKeys.profile, (old) => ({
+        ...old,
+        ...updatedData,
+      }));
       await updateUser({
-        ...(updatedData.dealerName
-          ? { dealerName: updatedData.dealerName }
+        dealerName: updatedData.dealerName,
+        phoneNumber: updatedData.phoneNumber ?? "",
+        address: updatedData.address ?? "",
+        ...(updatedData.subdomain !== undefined
+          ? { subdomain: updatedData.subdomain }
           : {}),
-        ...(updatedData.address ? { address: updatedData.address } : {}),
-        ...(updatedData.subdomain ? { subdomain: updatedData.subdomain } : {}),
-        ...(updatedData.fullDomain
+        ...(updatedData.fullDomain !== undefined
           ? { fullDomain: updatedData.fullDomain }
           : {}),
       });
@@ -65,7 +104,12 @@ export function useResetPassword() {
 
 export function useChangePassword() {
   return useMutation({
-    mutationFn: ({ newPassword }: { newPassword: string }) =>
-      changePassword(newPassword),
+    mutationFn: ({
+      newPassword,
+      currentPassword,
+    }: {
+      newPassword: string;
+      currentPassword: string;
+    }) => changePassword(newPassword, currentPassword),
   });
 }

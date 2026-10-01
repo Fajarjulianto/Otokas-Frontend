@@ -1,3 +1,4 @@
+import { FacebookButton } from "@/src/components/facebook/FacebookButton";
 import {
   MotorInfoRow,
   MotorPhotoSlide,
@@ -62,7 +63,9 @@ export default function MotorDetailPage() {
   const [currentPhotoIndex, setCurrentPhotoIndex] = React.useState(0);
   const galleryWidth = Math.max(width - 56, 240);
   const galleryHeight = Math.round((galleryWidth * 9) / 16);
-  const subtitle = [motor?.year, motor?.plateNumber].filter(Boolean).join(" · ");
+  const subtitle = [motor?.year, motor?.plateNumber]
+    .filter(Boolean)
+    .join(" · ");
   const showGallery = isPremium && validMotorImages.length > 0;
   const isPhotoMutationPending =
     uploadMotorImagesMutation.isPending || replaceMotorImagesMutation.isPending;
@@ -156,9 +159,7 @@ export default function MotorDetailPage() {
 
       if (imageToReplace) {
         const updatedImageCount =
-          updatedMotor.motorImages?.filter((image) =>
-            isValidHttpUrl(image.url),
-          )
+          updatedMotor.motorImages?.filter((image) => isValidHttpUrl(image.url))
             .length ?? 1;
         setCurrentPhotoIndex(Math.max(updatedImageCount - 1, 0));
       }
@@ -183,39 +184,35 @@ export default function MotorDetailPage() {
   function handleDeletePhoto(imageToDelete: MotorImage) {
     if (!motor || isPhotoMutationPending) return;
 
-    Alert.alert(
-      "Hapus Foto",
-      "Foto ini akan dihapus dari motor. Lanjutkan?",
-      [
-        { text: "Batal", style: "cancel" },
-        {
-          text: "Hapus",
-          style: "destructive",
-          onPress: () => {
-            replaceMotorImagesMutation.mutate(
-              {
-                motorId: motor.id,
-                images: motorImages.filter((image) => image !== imageToDelete),
+    Alert.alert("Hapus Foto", "Foto ini akan dihapus dari motor. Lanjutkan?", [
+      { text: "Batal", style: "cancel" },
+      {
+        text: "Hapus",
+        style: "destructive",
+        onPress: () => {
+          replaceMotorImagesMutation.mutate(
+            {
+              motorId: motor.id,
+              images: motorImages.filter((image) => image !== imageToDelete),
+            },
+            {
+              onSuccess: () => {
+                setCurrentPhotoIndex(0);
+                Alert.alert("Berhasil", "Foto motor berhasil dihapus.");
               },
-              {
-                onSuccess: () => {
-                  setCurrentPhotoIndex(0);
-                  Alert.alert("Berhasil", "Foto motor berhasil dihapus.");
-                },
-                onError: (error) => {
-                  Alert.alert(
-                    "Gagal",
-                    error instanceof Error
-                      ? error.message
-                      : "Foto motor gagal dihapus. Coba lagi.",
-                  );
-                },
+              onError: (error) => {
+                Alert.alert(
+                  "Gagal",
+                  error instanceof Error
+                    ? error.message
+                    : "Foto motor gagal dihapus. Coba lagi.",
+                );
               },
-            );
-          },
+            },
+          );
         },
-      ],
-    );
+      },
+    ]);
   }
 
   if (isLoading) {
@@ -269,6 +266,7 @@ export default function MotorDetailPage() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
       >
+        {isPremium && <FacebookButton motorId={id} />}
         {showGallery ? (
           <View
             className="bg-white rounded-2xl p-3 mb-4"

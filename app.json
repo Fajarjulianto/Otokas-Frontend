@@ -9,10 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.fajarid.Otokas"
+      "bundleIdentifier": "com.civika.otokas"
     },
     "android": {
-      "package": "com.fajarid.Otokas",
+      "package": "com.civika.otokas",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

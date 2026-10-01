@@ -59,12 +59,12 @@ Berdasarkan pemeriksaan kode di `app/edit-website.tsx`, `src/types/tenants.ts`, 
 
 ```mermaid
 flowchart TD
-    A[src/types/tenants.ts] -->|1. Tambah templateKey ke payload| B[src/constants/website.ts]
-    B -->|2. Daftarkan Template 3 & opsi key| C[src/components/website/TemplatePreview.tsx]
-    C -->|3. Dukung varian preview Template 3| D[app/edit-website.tsx]
-    D -->|4. Inisialisasi state dari backend & kirim templateKey saat save| E[Tombol Pergi ke Website]
+    A[src/types/tenants.ts] -->|1. Tambah templateKey ke payload| B [src/constants/website.ts]
+    B -->|2. Daftarkan Template 3 & opsi key| C [src/components/website/TemplatePreview.tsx]
+    C -->|3. Dukung varian preview Template 3| D [app/edit-website.tsx]
+    D -->|4. Inisialisasi state dari backend & kirim templateKey saat save| E [Tombol Pergi ke Website]
     D -->|5. Pasang tombol Link di bawah subdomain input| E
-    E -->|6. Verifikasi & Typecheck| F[Selesai]
+    E -->|6. Verifikasi & Typecheck| F [Selesai]
 ```
 
 1. **Step 1:** Modifikasi `src/types/tenants.ts` untuk menambahkan `templateKey` pada `UpdateLandingConfigPayload`.
@@ -76,3 +76,4 @@ flowchart TD
    - Tambahkan tombol "Pergi ke Website" di bawah input subdomain dengan handling `Linking.openURL`.
    - Bersihkan pemanggilan duplikat `updateBranding`.
 5. **Step 5:** Jalankan typecheck / linter untuk memastikan tidak ada regresi atau error TypeScript.
+6.

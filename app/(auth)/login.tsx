@@ -4,24 +4,16 @@ import {
   AuthSubmitButton,
   PasswordField,
 } from "@/src/components/auth/AuthForm";
-import {
-  AuthFormHeader,
-  AuthScreen,
-} from "@/src/components/auth/AuthScreen";
+import { AuthFormHeader, AuthScreen } from "@/src/components/auth/AuthScreen";
 import { useAuthContext } from "@/src/context/authContext";
 import { useLogin } from "@/src/hooks/useAuth";
-import { api } from "@/src/lib/api";
+import { logLoginStage } from "@/src/lib/networkDiagnostics";
 import { saveRefreshToken } from "@/src/lib/secureToken";
 import { fetchProfile } from "@/src/services/userServices";
 import { EMAIL_REGEX } from "@/src/utils/validation";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import {
-  Alert,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, Text, TouchableOpacity, View } from "react-native";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,27 +32,37 @@ export default function LoginPage() {
       { email: email.trim(), password },
       {
         onSuccess: async (data) => {
+          let stage = "refresh-token:save";
           try {
+            logLoginStage(stage);
             const accessToken = data.access_token;
             if (data.refresh_token) {
               await saveRefreshToken(data.refresh_token);
             }
-            api.defaults.headers.common["Authorization"] =
-              `Bearer ${accessToken}`;
-            const userProfile = await fetchProfile();
+            stage = "profile:fetch";
+            logLoginStage(stage);
+            const userProfile = await fetchProfile({ accessToken });
             const authPayload = {
               id: userProfile.id,
               email: userProfile.email,
               dealerName: userProfile.dealerName,
+              phoneNumber: userProfile.phoneNumber ?? "",
+              address: userProfile.address ?? "",
               isPremium: userProfile.isPremium,
               subdomain: userProfile.subdomain,
               fullDomain: userProfile.fullDomain,
               token: accessToken,
             };
 
+            stage = "sign-in:save-session";
+            logLoginStage(stage);
             await signIn(authPayload);
+            stage = "navigation:replace";
+            logLoginStage(stage);
             router.replace("/(tabs)");
+            logLoginStage("complete");
           } catch {
+            logLoginStage(`${stage}:failed-after-login-success`);
             Alert.alert("Gagal", "Gagal mengambil data profil dari server.");
           }
         },
@@ -85,6 +87,7 @@ export default function LoginPage() {
       <AuthField
         label="Email"
         placeholder="dealer@email.com"
+        placeholderTextColor="#000000"
         value={email}
         onChangeText={(text) => {
           setEmail(text);
@@ -103,6 +106,7 @@ export default function LoginPage() {
       <PasswordField
         label="Password"
         placeholder="Masukkan password"
+        placeholderTextColor="#000000"
         value={password}
         onChangeText={(text) => {
           setPassword(text);
@@ -114,12 +118,12 @@ export default function LoginPage() {
         containerClassName="mb-2"
       />
 
-            <TouchableOpacity
-              className="items-end mb-8"
-              onPress={() => router.push("/forgot-password")}
-            >
-              <Text className="text-amber-600 font-medium">Lupa Password?</Text>
-            </TouchableOpacity>
+      <TouchableOpacity
+        className="items-end mb-8"
+        onPress={() => router.push("/forgot-password")}
+      >
+        <Text className="text-amber-600 font-medium">Lupa Password?</Text>
+      </TouchableOpacity>
 
       <AuthSubmitButton
         label="Masuk"
@@ -128,14 +132,12 @@ export default function LoginPage() {
         loading={loginMutation.isPending}
       />
 
-            <View className="flex-row justify-center mt-8">
-              <Text className="text-slate-500">Belum punya akun? </Text>
-              <TouchableOpacity
-                onPress={() => router.replace("/(auth)/register")}
-              >
-                <Text className="text-blue-900 font-bold">Daftar Sekarang</Text>
-              </TouchableOpacity>
-            </View>
+      <View className="flex-row justify-center mt-8">
+        <Text className="text-slate-500">Belum punya akun? </Text>
+        <TouchableOpacity onPress={() => router.replace("/(auth)/register")}>
+          <Text className="text-blue-900 font-bold">Daftar Sekarang</Text>
+        </TouchableOpacity>
+      </View>
     </AuthScreen>
   );
 }

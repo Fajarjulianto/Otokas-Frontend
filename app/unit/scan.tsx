@@ -1,3 +1,5 @@
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
+import { stnkCrop, type Rect } from "@/src/utils/stnkCrop";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Stack, router } from "expo-router";
 import { ArrowLeft, RotateCcw } from "lucide-react-native";
@@ -43,6 +45,11 @@ export default function ScanScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [flashFeedback, setFlashFeedback] = useState(false);
 
+  const previewRef = useRef<View>(null);
+  const [preview, setPreview] = useState<Rect | null>(null);
+  const [frame, setFrame] = useState<Rect | null>(null);
+  const capturing = useRef(false);
+  const [isCapturing, setIsCapturing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
   useEffect(() => {
@@ -76,22 +83,39 @@ export default function ScanScreen() {
     return <CameraPermissionScreen onRequestPermission={requestPermission} />;
 
   const takeRapidPhoto = async () => {
-    if (!cameraRef.current || isProcessing || photos.length >= MAX_PHOTOS)
+    if (
+      !cameraRef.current ||
+      capturing.current ||
+      isProcessing ||
+      photos.length >= MAX_PHOTOS
+    )
       return;
+    capturing.current = true;
+    setIsCapturing(true);
     setErrorMsg(null);
     setFlashFeedback(true);
     setTimeout(() => setFlashFeedback(false), 150);
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 1 });
       if (photo?.uri) {
+        if (!preview || !frame)
+          throw new Error("Frame belum siap. Ambil ulang foto.");
+        const crop = stnkCrop(photo, preview, frame);
+        const image = ImageManipulator.manipulate(photo.uri);
+        image.crop(crop);
+        const rendered = await image.renderAsync();
+        const cropped = await rendered.saveAsync({ format: SaveFormat.PNG });
         setPhotos((prev) => [
           ...prev,
-          { uri: photo.uri, width: photo.width, height: photo.height },
+          { uri: cropped.uri, width: cropped.width, height: cropped.height },
         ]);
       }
     } catch (e) {
       console.error("[ScanScreen] Gagal mengambil foto:", e);
       setErrorMsg((e as Error).message || "Gagal mengambil foto.");
+    } finally {
+      capturing.current = false;
+      setIsCapturing(false);
     }
   };
 
@@ -238,6 +262,7 @@ export default function ScanScreen() {
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <ScreenConfirmation
+          key={activeScanIndex}
           ocr={currentResult}
           currentIndex={activeScanIndex + 1}
           totalCount={ocrResults.length}
@@ -289,7 +314,19 @@ export default function ScanScreen() {
     );
 
   return (
-    <View className="flex-1 bg-black">
+    <View
+      className="flex-1 bg-black"
+      ref={previewRef}
+      collapsable={false}
+      onLayout={() => {
+        setFrame(null);
+        requestAnimationFrame(() =>
+          previewRef.current?.measureInWindow((x, y, width, height) =>
+            setPreview({ x, y, width, height }),
+          ),
+        );
+      }}
+    >
       <Stack.Screen options={{ headerShown: false }} />
       <CameraView
         ref={cameraRef}
@@ -297,6 +334,50 @@ export default function ScanScreen() {
         facing="back"
       />
 
+      {preview && frame && (
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <View
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: 0,
+              height: frame.y - preview.y,
+              backgroundColor: "#0009",
+            }}
+          />
+          <View
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: frame.y - preview.y + frame.height,
+              bottom: 0,
+              backgroundColor: "#0009",
+            }}
+          />
+          <View
+            style={{
+              position: "absolute",
+              left: 0,
+              top: frame.y - preview.y,
+              width: frame.x - preview.x,
+              height: frame.height,
+              backgroundColor: "#0009",
+            }}
+          />
+          <View
+            style={{
+              position: "absolute",
+              right: 0,
+              top: frame.y - preview.y,
+              width: preview.width - frame.x + preview.x - frame.width,
+              height: frame.height,
+              backgroundColor: "#0009",
+            }}
+          />
+        </View>
+      )}
       <View
         style={StyleSheet.absoluteFill}
         className="z-10 flex-1 justify-between"
@@ -330,7 +411,11 @@ export default function ScanScreen() {
           </View>
         </SafeAreaView>
 
-        <Viewfinder photos={photos} onReview={() => setIsReviewing(true)} />
+        <Viewfinder
+          onFrame={setFrame}
+          photos={photos}
+          onReview={() => setIsReviewing(true)}
+        />
 
         {/* Error Message Floating */}
         {errorMsg && (
@@ -350,7 +435,7 @@ export default function ScanScreen() {
 
           <TouchableOpacity
             onPress={takeRapidPhoto}
-            disabled={photos.length >= MAX_PHOTOS}
+            disabled={isCapturing || !frame || photos.length >= MAX_PHOTOS}
             className="w-20 h-20 bg-white rounded-full border-4 border-amber-400 items-center justify-center"
           >
             <View className="w-14 h-14 bg-otokas-primary rounded-full" />

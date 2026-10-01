@@ -1,35 +1,43 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { userKeys } from "@/src/hooks/useUser";
+import type { SubscriptionStatus } from "@/src/services/subscriptionServices";
+import type { UserProfile } from "@/src/types/user";
 import { CatalogTemplatePreview } from "@/src/components/website/TemplatePreview";
 import {
-    DEFAULT_MOTOR_DISPLAY,
-    DEFAULT_WEBSITE_TEMPLATE,
-    WEBSITE_TEMPLATES,
-    WEBSITE_THEME_COLORS,
-    type WebsiteTemplate,
+  DEFAULT_MOTOR_DISPLAY,
+  DEFAULT_WEBSITE_TEMPLATE,
+  WEBSITE_TEMPLATES,
+  WEBSITE_THEME_COLORS,
+  type WebsiteTemplate,
 } from "@/src/constants/website";
 import { useAuthContext } from "@/src/context/authContext";
-import { useSubscriptionStatus } from "@/src/hooks/useSubscription";
+import {
+  subscriptionKeys,
+  useSubscriptionStatus,
+} from "@/src/hooks/useSubscription";
 import { uploadFileToGCS } from "@/src/services/motorServices";
 import {
-    confirmTenantBanner,
-    fetchPublicLandingContent,
-    getTenantBannerUploadUrl,
-    updateBranding,
-    updateLandingConfig,
+  confirmTenantBanner,
+  fetchPublicLandingContent,
+  getTenantBannerUploadUrl,
+  updateBranding,
+  updateLandingConfig,
 } from "@/src/services/tenantService";
 import type { MotorDisplayConfig } from "@/src/types/tenants";
 import { prepareImageForUpload } from "@/src/utils/imageUpload";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { ArrowLeft, Camera, Check } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Linking,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -45,7 +53,11 @@ function toPublicAssetUrl(uploadUrl: string): string {
 }
 
 export default function EditWebsiteScreen() {
-  const { user } = useAuthContext();
+  const { user, updateUser } = useAuthContext();
+  const queryClient = useQueryClient();
+  const subdomainDirty = useRef(false);
+  const [isSubdomainDirty, setIsSubdomainDirty] = useState(false);
+  const [savedDomain, setSavedDomain] = useState(user?.fullDomain ?? "");
   const { data: subscription } = useSubscriptionStatus();
   const [selectedTemplate, setSelectedTemplate] = useState<
     WebsiteTemplate["key"]
@@ -109,10 +121,10 @@ export default function EditWebsiteScreen() {
 
   // Initialize subdomain from current subscription/user
   useEffect(() => {
-    if (currentSubdomain && !subdomain) {
+    if (currentSubdomain && !subdomainDirty.current) {
       setSubdomain(currentSubdomain);
     }
-  }, [currentSubdomain, subdomain]);
+  }, [currentSubdomain]);
 
   useEffect(() => {
     let active = true;
@@ -147,10 +159,11 @@ export default function EditWebsiteScreen() {
         if (response.tenant.bannerUrl) {
           setHeroImage(response.tenant.bannerUrl);
         }
-        if (response.tenant.subdomain) {
+        if (response.tenant.subdomain && !subdomainDirty.current) {
           setSubdomain(response.tenant.subdomain);
         }
 
+        setSavedDomain(response.tenant.fullDomain);
         setWhatsappNumber(response.content.whatsappNumber ?? "");
         const location = response.content.location;
         setCity(location?.city ?? "");
@@ -256,7 +269,7 @@ export default function EditWebsiteScreen() {
         primaryColor: bgColor,
       });
 
-      await updateLandingConfig({
+      const saved = await updateLandingConfig({
         templateKey: selectedTemplate,
         subdomain: subdomainTrimmed,
         ...(whatsappNumber.trim()
@@ -278,6 +291,26 @@ export default function EditWebsiteScreen() {
           : {}),
         motorDisplay,
       });
+
+      await queryClient.cancelQueries({ queryKey: subscriptionKeys.status });
+      await queryClient.cancelQueries({ queryKey: userKeys.profile });
+      const domainUpdates = {
+        subdomain: saved.tenant.subdomain,
+        fullDomain: saved.tenant.fullDomain,
+      };
+      setSubdomain(domainUpdates.subdomain);
+      subdomainDirty.current = false;
+      setIsSubdomainDirty(false);
+      setSavedDomain(domainUpdates.fullDomain);
+      queryClient.setQueryData<SubscriptionStatus>(
+        subscriptionKeys.status,
+        (old) => (old ? { ...old, subdomain: domainUpdates.subdomain } : old),
+      );
+      queryClient.setQueriesData<UserProfile>(
+        { queryKey: userKeys.profile },
+        (old) => (old ? { ...old, ...domainUpdates } : old),
+      );
+      await updateUser(domainUpdates);
 
       if (heroImageAsset) {
         const preparedBanner = await prepareImageForUpload(heroImageAsset, {
@@ -392,9 +425,7 @@ export default function EditWebsiteScreen() {
                       heroImage={heroImage}
                       subtitle={template.subtitle}
                       title={template.title}
-                      variant={
-                        template.key === "template-two" ? "list" : "hero"
-                      }
+                      variant={template.key === "t-002" ? "list" : "hero"}
                       compact
                     />
                   </View>
@@ -456,7 +487,7 @@ export default function EditWebsiteScreen() {
               heroImage={heroImage}
               subtitle={subtitle}
               title={title}
-              variant={selectedTemplate === "template-two" ? "list" : "hero"}
+              variant={selectedTemplate === "t-002" ? "list" : "hero"}
             />
           </View>
         </View>
@@ -507,9 +538,11 @@ export default function EditWebsiteScreen() {
               <View className="flex-row items-center">
                 <TextInput
                   value={subdomain}
-                  onChangeText={(text) =>
-                    setSubdomain(text.toLowerCase().replace(/[^a-z0-9-]/g, ""))
-                  }
+                  onChangeText={(text) => {
+                    subdomainDirty.current = true;
+                    setIsSubdomainDirty(true);
+                    setSubdomain(text.toLowerCase().replace(/[^a-z0-9-]/g, ""));
+                  }}
                   placeholder="namatoko"
                   autoCapitalize="none"
                   className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 font-medium"
@@ -518,6 +551,26 @@ export default function EditWebsiteScreen() {
                   .otokas.co.id
                 </Text>
               </View>
+              <TouchableOpacity
+                disabled={!savedDomain}
+                onPress={() => {
+                  const url = `https://${savedDomain.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
+                  void Linking.openURL(url).catch(() =>
+                    Alert.alert("Gagal", "Website tidak dapat dibuka."),
+                  );
+                }}
+                className="mt-3 bg-slate-100 rounded-xl p-3"
+              >
+                <Text className="text-blue-800 font-semibold">
+                  Lihat Website
+                </Text>
+              </TouchableOpacity>
+              {isSubdomainDirty && (
+                <Text className="text-slate-500 text-xs mt-1">
+                  Tombol membuka alamat tersimpan. Simpan untuk menggunakan
+                  perubahan.
+                </Text>
+              )}
               <Text className="text-slate-400 text-xs mt-2 leading-5">
                 Alamat website katalog publik showroom Anda. Gunakan huruf
                 kecil, angka, dan tanda hubung.

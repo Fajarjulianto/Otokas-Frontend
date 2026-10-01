@@ -1,3 +1,5 @@
+import { FacebookButton } from "@/src/components/facebook/FacebookButton";
+import { FACEBOOK_ENABLED } from "@/src/services/facebookServices";
 import { useSubscriptionStatus } from "@/src/hooks/useSubscription";
 import { useRouter } from "expo-router";
 import {
@@ -19,6 +21,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const FEATURES = [
+  ...(FACEBOOK_ENABLED ? ["Caption otomatis & posting Facebook Page"] : []),
   "Scan STNK otomatis",
   "Upload foto tanpa batas",
   "Laporan laba rugi real-time",
@@ -111,6 +114,7 @@ export default function PaketScreen() {
               </View>
             </View>
 
+            <FacebookButton />
             {/* ── TOMBOL MENUJU EDIT WEBSITE (ELEGANT PREMIUM CARD) ── */}
             <View className="mt-6">
               <Text className="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider ml-1">

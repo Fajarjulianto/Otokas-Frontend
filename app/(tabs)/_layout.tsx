@@ -1,4 +1,5 @@
-import { Tabs, useRouter } from "expo-router";
+import { useAuthContext } from "@/src/context/authContext";
+import { Redirect, Tabs, useRouter } from "expo-router";
 import {
   BarChart3,
   Home,
@@ -6,12 +7,20 @@ import {
   PlusCircle,
   User,
 } from "lucide-react-native";
-import { View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 
 export default function TabLayout() {
+  const { user, isLoading } = useAuthContext();
   const primaryColor = "#1E40AF"; // Blue-800
   const accentColor = "#f59e0b"; // Amber-500
   const router = useRouter();
+  if (isLoading)
+    return (
+      <View className="flex-1 items-center justify-center">
+        <ActivityIndicator />
+      </View>
+    );
+  if (!user) return <Redirect href="/(auth)/login" />;
   return (
     <Tabs
       screenOptions={{

@@ -1,3 +1,4 @@
+import { FACEBOOK_ENABLED } from "@/src/services/facebookServices";
 import { MotorPhotoPicker } from "@/src/components/motor/MotorPhotoPicker";
 import {
   ScanDataRows,
@@ -226,10 +227,7 @@ export default function BatchAddMotorPage() {
     for (let index = 0; index < motors.length; index += 1) {
       const motor = motors[index];
       const existingConflict = findIdentityConflict(motor, existingMotors);
-      const batchConflict = findIdentityConflict(
-        motor,
-        motors.slice(0, index),
-      );
+      const batchConflict = findIdentityConflict(motor, motors.slice(0, index));
       const conflict = existingConflict ?? batchConflict;
 
       if (conflict) {
@@ -286,7 +284,7 @@ export default function BatchAddMotorPage() {
         failedPhotoUploads > 0 ? "Motor Berhasil Disimpan" : "Sukses!",
         failedPhotoUploads > 0
           ? `${motors.length} motor tersimpan, tetapi foto pada ${failedPhotoUploads} motor gagal diupload. Foto dapat ditambahkan kembali dari detail motor.`
-          : `${motors.length} motor berhasil ditambahkan ke etalase Anda.`,
+          : `${motors.length} motor berhasil ditambahkan ke etalase Anda.${FACEBOOK_ENABLED ? " Review posting Facebook tersedia di detail masing-masing motor." : ""}`,
         [{ text: "OK", onPress: () => router.replace("/(tabs)/stok") }],
       );
     } catch (err) {
@@ -538,7 +536,8 @@ export default function BatchAddMotorPage() {
                 Status Kelengkapan:
               </Text>
               <Text className="font-bold text-slate-800">
-                {motors.filter(isMotorReady).length} / {motors.length} Motor Siap
+                {motors.filter(isMotorReady).length} / {motors.length} Motor
+                Siap
               </Text>
             </View>
 

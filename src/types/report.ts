@@ -1,4 +1,4 @@
-// Analytics types (see README §5).
+// Analytics types
 
 export type SoldMotor = {
   id: string;
@@ -31,7 +31,7 @@ export type BestSellingEntry = {
   totalRevenue: number;
 };
 
-// Dashboard stats (README §5 dashboard summary)
+// Dashboard stats
 export type DashboardStats = {
   stock: number;
   sold: number;

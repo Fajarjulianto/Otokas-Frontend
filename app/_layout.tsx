@@ -1,27 +1,14 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AccountQueries } from "@/src/components/providers/AccountQueries";
 import { Stack } from "expo-router";
 import "../global.css";
 import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { AuthProvider } from "../src/context/authContext";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 menit
-      retry: 2,
-      refetchOnWindowFocus: false,
-    },
-    mutations: {
-      retry: 1,
-    },
-  },
-});
-
 export default function RootLayout() {
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
+      <AuthProvider>
+        <AccountQueries>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(tabs)" />
@@ -35,8 +22,8 @@ export default function RootLayout() {
             <Stack.Screen name="payment/webview" />
             <Stack.Screen name="payment/result" />
           </Stack>
-        </AuthProvider>
-      </QueryClientProvider>
+        </AccountQueries>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

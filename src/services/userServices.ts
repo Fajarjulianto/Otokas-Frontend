@@ -2,10 +2,28 @@ import { api, extractData } from "@/src/lib/api";
 import type { UpdateProfilePayload, UserProfile } from "@/src/types/user";
 
 // ── Fetch Profile ──
-export async function fetchProfile(): Promise<UserProfile> {
-  const response = await api.get("/users/profile");
+export async function fetchProfile(options?: {
+  signal?: AbortSignal;
+  accessToken?: string;
+}): Promise<UserProfile> {
+  const response = await api.get(
+    "/users/profile",
+    options
+      ? {
+          signal: options.signal,
+          ...(options.accessToken
+            ? { authTokenOverride: options.accessToken, skipAuthRefresh: true }
+            : {}),
+        }
+      : undefined,
+  );
   const userData = extractData<UserProfile>(response);
-  if (!userData || !userData.dealerName || !userData.email) {
+  if (
+    !userData ||
+    typeof userData.dealerName !== "string" ||
+    !userData.dealerName.trim() ||
+    !userData.email
+  ) {
     throw new Error("Gagal mengambil data profil dari server.");
   }
 
@@ -22,8 +40,12 @@ export async function updateProfile(
 
 export async function changePassword(
   newPassword: string,
+  currentPassword: string,
 ): Promise<{ message?: string }> {
-  const response = await api.post("/users/change-password", { newPassword });
+  const response = await api.post("/users/change-password", {
+    newPassword,
+    currentPassword,
+  });
   return extractData<{ message?: string }>(response);
 }
 

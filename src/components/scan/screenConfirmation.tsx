@@ -1,3 +1,6 @@
+import { FacebookButton } from "@/src/components/facebook/FacebookButton";
+import { useSubscriptionStatus } from "@/src/hooks/useSubscription";
+import { FACEBOOK_ENABLED } from "@/src/services/facebookServices";
 import { MotorPhotoPicker } from "@/src/components/motor/MotorPhotoPicker";
 import {
   ScanDataRows,
@@ -13,7 +16,12 @@ import {
 } from "@/src/utils/scanMotor";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { ArrowLeft, CheckCircle, DollarSign, ScanLine } from "lucide-react-native";
+import {
+  ArrowLeft,
+  CheckCircle,
+  DollarSign,
+  ScanLine,
+} from "lucide-react-native";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -42,9 +50,11 @@ export default function ScreenConfirmation({
   onSuccessNext?: () => void;
 }) {
   const router = useRouter();
+  const { data: subscription } = useSubscriptionStatus();
   const insertMotorMutation = useInsertMotor();
   const uploadMotorImagesMutation = useUploadMotorImages();
 
+  const [savedMotorId, setSavedMotorId] = useState<string | null>(null);
   const [hargaJual, setHargaJual] = useState("");
   const [hargaBeli, setHargaBeli] = useState("");
   const [brand, setBrand] = useState(ocr.brand ?? "");
@@ -85,11 +95,12 @@ export default function ScreenConfirmation({
   };
 
   async function handleSimpan() {
-    if (!isValid) return;
+    if (!isValid || isSubmitting || savedMotorId) return;
     const dataMotor = toMotorInsertFromScan(editableOcr, buying, selling);
 
     try {
       const createdMotor = await insertMotorMutation.mutateAsync(dataMotor);
+      setSavedMotorId(createdMotor.id);
       let successMessage =
         totalCount && currentIndex && currentIndex < totalCount
           ? `Motor ${currentIndex} dari ${totalCount} berhasil disimpan.`
@@ -113,6 +124,18 @@ export default function ScreenConfirmation({
       }
 
       Alert.alert("Berhasil", successMessage, [
+        ...(FACEBOOK_ENABLED && subscription?.isPremium
+          ? [
+              {
+                text: "Siapkan Posting Facebook",
+                onPress: () =>
+                  router.push({
+                    pathname: "/facebook-post" as const,
+                    params: { id: createdMotor.id },
+                  }),
+              },
+            ]
+          : []),
         {
           text: "OK",
           onPress: () => {
@@ -134,6 +157,23 @@ export default function ScreenConfirmation({
       );
     }
   }
+
+  if (savedMotorId && !isSubmitting)
+    return (
+      <SafeAreaView className="flex-1 bg-white p-5 justify-center">
+        <Text className="text-xl font-bold mb-4">Motor sudah disimpan</Text>
+        <Text>
+          Anda dapat meninjau posting Facebook atau melanjutkan scan berikutnya.
+        </Text>
+        {subscription?.isPremium && <FacebookButton motorId={savedMotorId} />}
+        <TouchableOpacity
+          className="bg-blue-800 p-4 rounded-xl mt-4"
+          onPress={() => (onSuccessNext ? onSuccessNext() : onBack())}
+        >
+          <Text className="text-white text-center font-bold">Lanjut</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
 
   return (
     <SafeAreaView className="flex-1 bg-slate-100" edges={["top"]}>
@@ -197,7 +237,10 @@ export default function ScreenConfirmation({
             </View>
           )}
 
-          <View className="bg-white rounded-2xl p-4 mb-5" style={{ elevation: 1 }}>
+          <View
+            className="bg-white rounded-2xl p-4 mb-5"
+            style={{ elevation: 1 }}
+          >
             <Text className="text-slate-800 text-base font-bold mb-4">
               Lengkapi Harga
             </Text>
@@ -258,7 +301,10 @@ export default function ScreenConfirmation({
             )}
           </View>
 
-          <View className="bg-white rounded-2xl p-4 mb-5" style={{ elevation: 1 }}>
+          <View
+            className="bg-white rounded-2xl p-4 mb-5"
+            style={{ elevation: 1 }}
+          >
             <Text className="text-slate-800 text-base font-bold mb-3">
               Foto Motor
             </Text>

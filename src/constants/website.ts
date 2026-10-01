@@ -24,7 +24,7 @@ export const WEBSITE_TEMPLATES = [
     isDummy: false,
   },
   {
-    key: "template-two",
+    key: "t-002",
     name: "Template 2",
     description: "Slot sementara untuk desain template kedua.",
     primaryColor: "#0f172a",

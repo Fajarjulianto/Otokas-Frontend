@@ -1,19 +1,36 @@
 import { PhotoItem } from "@/src/types/scan";
-import React from "react";
+import React, { useRef } from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 
 export default function Viewfinder({
   photos,
   onReview,
+  onFrame,
 }: {
   photos: PhotoItem[];
   onReview: () => void;
+  onFrame: (rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) => void;
 }) {
+  const frameRef = useRef<View>(null);
   return (
     <View className="flex-1 items-center justify-center">
       <View
+        ref={frameRef}
+        collapsable={false}
+        onLayout={() =>
+          requestAnimationFrame(() =>
+            frameRef.current?.measureInWindow((x, y, width, height) =>
+              onFrame({ x, y, width, height }),
+            ),
+          )
+        }
         className="relative rounded-2xl"
-        style={{ width: 320, aspectRatio: 1.585 }}
+        style={{ width: "85%", maxWidth: 500, aspectRatio: 1.585 }}
       >
         {/* Outline penuh mengikuti bentuk kartu STNK */}
         <View className="absolute inset-0 rounded-2xl border-2 border-amber-400/40" />

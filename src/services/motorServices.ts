@@ -1,6 +1,6 @@
 import { api } from "@/src/lib/api";
-import { fetch as expoFetch } from "expo/fetch";
 import { File } from "expo-file-system";
+import { fetch as expoFetch } from "expo/fetch";
 import { Motor, MotorImage, MotorStatus } from "../types/motor";
 import type { DashboardStats } from "../types/report";
 import type { OcrResult } from "../types/scan";
@@ -10,7 +10,6 @@ import {
 } from "../utils/imageUpload";
 import { normalizeScanResult } from "../utils/scanMotor";
 
-// Payload accepted by POST /motors and POST /motors/bulk (README §2 & §3).
 export type MotorInsert = {
   brand: string;
   name: string;
@@ -29,7 +28,7 @@ export type MotorInsert = {
   sellingPrice?: number;
 };
 
-// ── Fetch semua motor (README: optional ?status= filter) ──
+// ── Fetch semua motor
 export async function fetchMotors(status?: MotorStatus): Promise<Motor[]> {
   const response = await api.get("/motors", {
     params: status ? { status } : undefined,
@@ -76,7 +75,7 @@ export async function deleteMotor(motorId: string): Promise<void> {
   await api.delete(`/motors/${motorId}`);
 }
 
-// ── Statistik dashboard (README §5) ──
+// ── Statistik dashboard
 export async function fetchDashboardStats(
   month?: string,
 ): Promise<DashboardStats> {
@@ -158,7 +157,7 @@ export async function uploadFileToGCS(
   }
 }
 
-// ── STNK scan: Step 3 — AI batch scan (README §2) ──
+// ── STNK scan
 export async function scanWithUploadedPaths(
   files: { filePath: string; mimeType: string }[],
 ): Promise<OcrResult[]> {
@@ -170,14 +169,16 @@ export async function scanWithUploadedPaths(
     { timeout: 120_000 },
   );
   const responseData: unknown = response.data?.data ?? response.data;
-  const rawResults = Array.isArray(responseData) ? responseData : [responseData];
+  const rawResults = Array.isArray(responseData)
+    ? responseData
+    : [responseData];
 
   return rawResults
     .map(normalizeScanResult)
     .filter((result): result is OcrResult => result !== null);
 }
 
-// ── Motor images: get presigned upload URLs (README §3) ──
+// ── Motor images: get presigned upload URLs
 export async function getMotorImageUploadUrls(
   motorId: string,
   files: { fileName: string; mimeType: string }[],
@@ -239,11 +240,7 @@ export async function uploadMotorImages(
 
   await Promise.all(
     preparedFiles.map((file, index) =>
-      uploadFileToGCS(
-        uploads[index].uploadUrl,
-        file.uri,
-        file.mimeType,
-      ),
+      uploadFileToGCS(uploads[index].uploadUrl, file.uri, file.mimeType),
     ),
   );
 

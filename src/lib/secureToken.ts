@@ -18,7 +18,7 @@ export async function deleteToken(): Promise<void> {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
-// ── Refresh token (README §1: POST /auth/refresh accepts refresh_token) ──
+// ── Refresh token
 export async function saveRefreshToken(token: string): Promise<void> {
   await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
 }

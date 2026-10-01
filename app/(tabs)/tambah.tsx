@@ -1,3 +1,4 @@
+import { FACEBOOK_ENABLED } from "@/src/services/facebookServices";
 import { ScreenHeader } from "@/src/components/layout/ScreenHeader";
 import {
   MotorBrandPicker,
@@ -138,6 +139,20 @@ export default function QuickAddMotorPage() {
       }
 
       Alert.alert("Berhasil", successMessage, [
+        ...(FACEBOOK_ENABLED && isPremium
+          ? [
+              {
+                text: "Siapkan Posting Facebook",
+                onPress: () => {
+                  resetForm();
+                  router.push({
+                    pathname: "/facebook-post" as const,
+                    params: { id: createdMotor.id },
+                  });
+                },
+              },
+            ]
+          : []),
         {
           text: "OK",
           onPress: () => {
@@ -327,9 +342,7 @@ export default function QuickAddMotorPage() {
             onPress={handleSimpan}
             disabled={!isValid || isSubmitting}
             className={`w-full p-4 rounded-2xl flex-row items-center justify-center gap-2 ${
-              isValid && !isSubmitting
-                ? "bg-[#f59e0b]"
-                : "bg-slate-200"
+              isValid && !isSubmitting ? "bg-[#f59e0b]" : "bg-slate-200"
             }`}
           >
             {isSubmitting ? (

@@ -1,5 +1,12 @@
+import { onSessionExpired } from "@/src/lib/authSession";
 import { AUTH_KEY } from "@/src/constants/storage";
-import { deleteToken, getToken, saveToken } from "@/src/lib/secureToken";
+import {
+  deleteToken,
+  deleteRefreshToken,
+  getRefreshToken,
+  getToken,
+  saveToken,
+} from "@/src/lib/secureToken";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, {
@@ -17,6 +24,7 @@ export type AuthUser = {
   fullName?: string;
   dealerName?: string;
   address?: string;
+  phoneNumber?: string;
   subdomain?: string;
   fullDomain?: string;
   isPremium?: boolean;
@@ -57,7 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (secureToken) {
             parsed.token = secureToken;
           }
-          setUser(parsed);
+          if (secureToken || (await getRefreshToken())) setUser(parsed);
+          else await AsyncStorage.removeItem(AUTH_KEY);
         }
       } catch {
         await AsyncStorage.removeItem(AUTH_KEY);
@@ -81,10 +90,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     await AsyncStorage.removeItem(AUTH_KEY);
-    await deleteToken();
+    await Promise.all([deleteToken(), deleteRefreshToken()]);
     setUser(null);
     router.replace("/(auth)/login");
   }, [router]);
+
+  useEffect(
+    () =>
+      onSessionExpired(() => {
+        void signOut();
+      }),
+    [signOut],
+  );
 
   const updateUser = useCallback(async (updates: Partial<AuthUser>) => {
     setUser((prev) => {

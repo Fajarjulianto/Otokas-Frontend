@@ -1,4 +1,4 @@
-// Types for the Tenant module (see README §7 & §8).
+// Types for the Tenant module
 
 export type Tenant = {
   id?: string;
@@ -80,7 +80,7 @@ export type ConfirmTenantBannerPayload = {
   size?: number;
 };
 
-// Public tenant listing types (README §8)
+// Public tenant listing types
 export type PublicMotor = {
   id: string;
   title: string;

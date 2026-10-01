@@ -7,7 +7,7 @@ Aplikasi ini membantu pemilik showroom mengelola stok unit, memproses data motor
 
 | Layer          | Teknologi                                    |
 | -------------- | -------------------------------------------- |
-| Framework      | React Native + Expo SDK 54                   |
+| Framework      | React Native + Expo SDK 57                   |
 | Routing        | Expo Router                                  |
 | Styling        | NativeWind v4 + Tailwind CSS                 |
 | Language       | TypeScript                                   |
@@ -97,8 +97,45 @@ Saat ini permission digunakan di fitur berikut:
 - `eas.json` sudah memiliki profile `development`, `preview`, dan `production`.
 - Profile `production` memakai Android App Bundle.
 - Identitas aplikasi sudah diset di `app.json`:
-  - Android package: `com.fajarid.Otokas`
-  - iOS bundle identifier: `com.fajarid.Otokas`
+  - Android package: `com.civika.otokas`
+  - iOS bundle identifier: `com.civika.otokas`
+
+### Build Native Secara Lokal
+
+1. Gunakan Node.js 20 atau lebih baru, lalu install dependency dari lockfile:
+
+   ```sh
+   npm ci
+   ```
+
+2. Periksa konfigurasi dan dependency Expo:
+
+   ```sh
+   npx expo-doctor
+   npx expo install --check
+   ```
+
+3. Siapkan toolchain untuk platform yang akan dibangun:
+   - **Android**: Android Studio, Android SDK Platform/Build Tools yang diminta Gradle, Java 17, dan `ANDROID_HOME` yang menunjuk ke direktori SDK. Pastikan `platform-tools` ada di `PATH` agar `adb` dapat ditemukan.
+   - **iOS**: macOS, Xcode dengan command line tools aktif, dan CocoaPods (`pod`).
+
+4. Jalankan build debug lokal:
+
+   ```sh
+   npm run android
+   # atau
+   npm run ios
+   ```
+
+   Perintah Expo akan membuat folder native `android/` atau `ios/` dari konfigurasi app jika belum ada, lalu menjalankan build. Folder tersebut diabaikan Git karena project memakai Expo Prebuild; jangan menghapus folder native yang sudah disesuaikan secara manual.
+
+Untuk memeriksa bundling JavaScript Android tanpa Android SDK/emulator, jalankan:
+
+```sh
+npx expo export --platform android --output-dir /tmp/otokas-android-export
+```
+
+Perintah export hanya memastikan bundle JS dan asset berhasil dibuat; ini tidak menghasilkan APK. Build APK/AAB native tetap memerlukan Android SDK.
 
 ## Catatan Release
 
